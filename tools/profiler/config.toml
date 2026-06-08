@@ -1,0 +1,87 @@
+# WoW Profiling Configuration
+# This file is committed to git with safe defaults.
+# Copy to config.local.toml and override with your actual paths.
+
+[paths]
+# Path to WoW 3.3.5a client directory
+wow_dir = "/Users/mykino/Documents/ChromieCraft_3.3.5a"
+
+# Path to CrossOver.app
+crossover_app = "/Users/mykino/Applications/CrossOver.app"
+
+# Path to WoW.exe inside the client directory (relative to wow_dir)
+wow_exe = "WoW.exe"
+
+[profiling]
+# Default profiling duration in seconds
+default_duration = 300
+
+# Minimum duration allowed (seconds)
+min_duration = 10
+
+# Maximum duration allowed (seconds)
+max_duration = 3600
+
+# Sample interval for CPU sampling (seconds)
+cpu_sample_interval = 1
+
+# Output directory for profiling data (relative to project root)
+output_dir = "data/profiling"
+
+[wow]
+# WoW.exe memory range (updated after Spike A/T04)
+# These are example values for 32-bit PE — update after memory map documentation
+base_address = "0x00400000"
+memory_range_start = "0x00400000"
+memory_range_end = "0x00800000"
+
+# WoW version being profiled
+version = "3.3.5a"
+build = "12340"
+
+[frida]
+# Frida-specific settings
+# Enable Wine address filtering (distinguish WoW x87 from Wine x87)
+filter_wine_addresses = true
+
+# Modules to trace for x87 calls
+x87_modules = ["msvcrt.dll", "msvcrt40.dll"]
+
+# D3D9 modules to trace
+d3d9_modules = ["d3d9.dll"]
+
+# Functions to hook for x87 tracing
+x87_functions = [
+    "sin",
+    "cos",
+    "tan",
+    "sqrt",
+    "pow",
+    "floor",
+    "ceil",
+    "fmod",
+    "_ftol",
+    "_ftol2",
+    "atan2",
+    "log",
+    "log10",
+    "exp",
+]
+
+# D3D9 functions to trace
+d3d9_functions = [
+    "DrawPrimitive",
+    "DrawIndexedPrimitive",
+    "SetStreamSource",
+    "SetTransform",
+]
+
+[sampling]
+# Fall back to `sample` command if Frida fails (SIP/hardened runtime)
+use_sample_fallback = false
+
+# Number of sample iterations for fallback mode
+sample_iterations = 300
+
+# Parse sample output for these modules
+sample_modules = ["WoW.exe", "libSiliconPatch.dll"]

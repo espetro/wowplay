@@ -3,8 +3,9 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 
-use crate::adapters::errors::LaunchError;
+use crate::adapters::errors::{LaunchError, TranslationError};
 use crate::ports::launcher::RosettaLauncherPort;
+use crate::ports::rosetta::RosettaTranslationPort;
 
 /// Adapter wrapping the rosettax87_jit `runtime_loader` executable.
 ///
@@ -64,4 +65,19 @@ impl RosettaLauncherPort for Rosettax87JitAdapter {
     fn runtime_path(&self) -> &Path {
         &self.runtime_loader
     }
+}
+
+impl RosettaTranslationPort for Rosettax87JitAdapter {
+    fn translate_x87_instruction(&self, bytes: &[u8]) -> Result<Vec<u8>, TranslationError> {
+        if bytes.is_empty() {
+            return Err(TranslationError::InvalidInstruction);
+        }
+        Ok(bytes.to_vec())
+    }
+
+    fn get_cached_translation(&self, _key: u64) -> Option<Vec<u8>> {
+        None
+    }
+
+    fn cache_translation(&self, _key: u64, _bytes: Vec<u8>) {}
 }

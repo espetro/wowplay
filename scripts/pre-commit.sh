@@ -13,6 +13,14 @@ if [ -d "packages/rust-core" ]; then
     cd - > /dev/null
 fi
 
+# Integration checks
+if [ -d "packages/integration" ]; then
+    echo "→ MRE tests..."
+    cd packages/integration
+    cargo test --test mre
+    cd - > /dev/null
+fi
+
 # Zig checks (use mise shim if bare `zig` not on PATH)
 ZIG="${ZIG:-zig}"
 if ! command -v "$ZIG" &>/dev/null; then

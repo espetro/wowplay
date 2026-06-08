@@ -37,3 +37,7 @@ zig-out/
 
 # Claude
 .claude/local/
+.omo/
+
+# Worktrees
+.worktrees/

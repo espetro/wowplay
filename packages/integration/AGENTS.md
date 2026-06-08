@@ -10,17 +10,17 @@ packages/integration/
 ├── Cargo.toml        # Test dependencies
 └── tests/
     ├── mre/          # Minimal Reproducible Examples
-    │   ├── rosettax87_tests.rs
-    │   └── winerosetta_tests.rs
+    │   ├── mre_test.rs            # Main MRE test suite
+    │   ├── hook_injection_tests.rs # Mock injection tests (no live WoW)
+    │   └── x87_corpus.rs           # 54 x87 instruction patterns for test input
     └── e2e/          # End-to-end tests (manual)
-        ├── wow_launch_tests.rs
-        └── gameplay_tests.rs
+        └── e2e_test.rs
 ```
 
 ## Quick Start
-1. Ensure external libs are installed
-2. Run MRE tests: `cargo test --test mre_tests`
-3. Run E2E tests: `cargo test --test e2e_tests -- --ignored`
+1. Ensure Rust and Zig are installed
+2. Run MRE tests: `cargo test --test mre`
+3. Run E2E tests: `cargo test --test e2e -- --ignored`
 
 ## Key Principles
 - **MRE tests are fast**: No WoW process required
@@ -73,12 +73,12 @@ cargo test
 
 ### MRE Tests Only
 ```bash
-cargo test --test mre_tests
+cargo test --test mre
 ```
 
 ### E2E Tests (Manual)
 ```bash
-cargo test --test e2e_tests -- --ignored
+cargo test --test e2e -- --ignored
 ```
 
 ### Specific Test
@@ -89,9 +89,11 @@ cargo test test_rosettax87_fxch_translation
 ## Test Setup
 
 ### Prerequisites
-1. Install external libraries:
+1. Install build tools:
    ```bash
-   brew install rosettax87_jit winerosetta
+   rustc --version          # Rust
+   zig version              # Zig (for cross-compiling winerosetta.dll)
+   which mise || which uv   # Python tooling (for profiler, launch-diagnostics)
    ```
 
 2. Ensure CrossOver is installed (for E2E tests)
@@ -177,10 +179,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install dependencies
-        run: brew install rosettax87_jit winerosetta
+      - name: Install Zig
+        run: |
+          brew install zig
       - name: Run MRE tests
-        run: cargo test --test mre_tests
+        run: cargo test --test mre
 ```
 
 ## Debugging Tests
@@ -200,6 +203,15 @@ cargo test rosettax87
 rust-lldb -- cargo test test_name
 ```
 
+## Key Test Files
+
+### x87_corpus.rs
+54 x87 instruction patterns (fxch, fadd, fsub, etc.) used as test input for instruction translation validation.
+
+### hook_injection_tests.rs
+13 mock injection tests via MockWineAdapter. These validate injection mechanism without requiring live WoW process.
+
 ## See Also
 - [Root AGENTS.md](../../AGENTS.md) - Project overview
-- [Testing Strategy](../../docs/testing-strategy.md) - Detailed testing approach
+- [Profiling Guide](../../docs/profiling-guide.md) - WoW profiling workflow
+- [Rust Core](../rust-core/AGENTS.md) - Domain logic and FFI

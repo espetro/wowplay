@@ -12,8 +12,10 @@ Working tool for World of Warcraft 3.3.5a on Apple Silicon using a Ports & Adapt
 1. Read the relevant AGENTS.md for your layer:
    - Root (this file): Project overview, architecture links
    - packages/rust-core/AGENTS.md: Rust domain and FFI work
-   - packages/zig-glue/AGENTS.md: Zig/C++ build system
+   - packages/zig-glue/AGENTS.md: Zig cross-compilation to Windows x86 DLL
    - packages/integration/AGENTS.md: Testing and MRE harness
+   - tools/profiler/AGENTS.md: Python profiling toolkit (Frida + macOS sample)
+   - tools/launch-diagnostics/AGENTS.md: Launch log classification
 
 2. Before making changes:
    - Run `scripts/pre-commit.sh` to validate your work
@@ -23,6 +25,7 @@ Working tool for World of Warcraft 3.3.5a on Apple Silicon using a Ports & Adapt
 
 ## Architecture
 See docs/architecture.md for Ports & Adapters design.
+See docs/profiling-guide.md for WoW profiling workflow (Frida, x87 tracing, CPU sampling).
 
 ## Key Principles
 - Build UPON working libraries, don't replace initially

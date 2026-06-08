@@ -1,136 +1,143 @@
 # zig-glue Package - Agent Guide
 
 ## Overview
-Zig-based build system for C/C++ interop and low-level glue code.
+Cross-compile winerosetta.dll (Windows x86 DLL) from C++ source using Zig's native cross-compilation without external mingw toolchain.
 
 ## Your Workspace
 ```
 packages/zig-glue/
-├── AGENTS.md          # This file
-├── build.zig         # Zig build configuration
+├── AGENTS.md                  # This file
+├── build.zig                  # Zig build system entry
 └── src/
-    ├── ffi/          # FFI bindings
-    └── glue/         # Glue code
+    └── root.zig               # Build root (orchestrates compilation)
+vendor/
+└── winerosetta/
+    └── winerosetta.cpp        # C++17 source: Wine x87 translator
+zig-out/
+└── bin/
+    └── winerosetta.dll        # Output: Windows x86 DLL
 ```
 
 ## Quick Start
 1. Ensure Zig is installed: `zig version`
-2. Configure build in `build.zig`
-3. Implement glue code in `src/`
-4. Build with `zig build`
+2. Cross-compile: `zig build`
+3. Output: `zig-out/bin/winerosetta.dll` (Windows x86 executable code)
 
-## Key Principles
-- **Minimal C interop**: Only what Rust can't do easily
-- **Safety first**: Validate all pointers and buffers
-- **No business logic**: This is glue code, not domain logic
-- **Test thoroughly**: FFI bugs are hard to debug
+## Key Purpose
 
-## Common Tasks
+**Zig solves a critical problem**: Cross-compiling C++17 (`winerosetta.cpp`) to Windows x86 without:
+- macOS→Windows mingw toolchain complexity
+- C++ standard library incompatibilities
+- System-specific header path issues
 
-### Add FFI Binding
+Zig's `zig cc` and `x86-windows-gnu` target handle this in one command.
+
+## Build Configuration
+
+### build.zig Structure
 ```zig
-// src/ffi/my_binding.zig
-const c = @cImport({
-    @cInclude("my_library.h");
-});
-
-pub extern "C" fn my_wrapper(arg: c_int) callconv(.C) c_int {
-    // Wrapper logic
-    return c.my_function(arg);
-}
-```
-
-### Configure Build
-```zig
-// build.zig
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(null);
-    const optimize = b.standardOptimizeOption(null);
-    
-    const lib = b.addStaticLibrary(.{
-        .name = "zig-glue",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
+    // Windows x86 target (not native macOS ARM)
+    const target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86,
+        .os_tag = .windows,
+        .abi = .gnu,
     });
     
-    b.installArtifact(lib);
+    const exe = b.addExecutable(.{
+        .name = "winerosetta",
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    
+    exe.addCSourceFile(.{
+        .file = .{ .path = "vendor/winerosetta/winerosetta.cpp" },
+        .flags = &.{ "-std=c++17", "-O2" },
+    });
+    
+    exe.linkLibCpp(); // C++ standard library
+    exe.subsystem = .Windows; // Windows subsystem
+    b.installArtifact(exe);
 }
 ```
 
-### Add Library Linkage
-```zig
-// In build.zig
-lib.linkSystemLibrary("my_library");
-lib.addIncludePath("/path/to/headers");
+## Common Tasks
+
+### Build for Windows x86
+```bash
+zig build
+# Output: zig-out/bin/winerosetta.dll
 ```
+
+### Debug Build
+```bash
+zig build -Doptimize=Debug
+# Output: zig-out/bin/winerosetta.dll (with symbols)
+```
+
+### Check Build Environment
+```bash
+zig version              # Must be installed
+zig cc --version        # Verifies Zig's C compiler
+```
+
+### Cross-Compilation Targets
+Zig can target other platforms from macOS:
+```
+x86-windows-gnu         # Current: 32-bit Windows
+x86_64-windows-gnu      # 64-bit Windows (future)
+aarch64-windows-msvc    # Arm64 Windows (future)
+x86-linux-gnu           # 32-bit Linux testing
+```
+
+## Integration Points
+
+### With rust-core
+- Compiled DLL is loaded via `libloading` in adapters
+- Path: typically `libloading::Library::new("winerosetta.dll")`
+
+### With integration tests
+- Hook injection tests (hook_injection_tests.rs) validate DLL injection
+- E2E tests require WoW.exe environment
+
+## FFI Safety Rules
+1. **DLL entry points**: Must be C calling convention (`extern "C"`)
+2. **Buffer sizes**: All pointers must be validated by Wine adapter
+3. **Error codes**: Return integers (not Rust Results) from C++
 
 ## Testing
+
+### Smoke Test the Build
 ```bash
-# Run tests
-zig build test
-
-# Run specific test
-zig test src/my_test.zig
+# Verify DLL compiles and exports symbols
+zig build
+file zig-out/bin/winerosetta.dll  # Should say PE Windows
 ```
 
-## When to Use Zig vs Rust
+### Integration via Rust
+The compiled DLL is consumed by:
+- `packages/rust-core/src/adapters/` (dynamic loading)
+- `packages/integration/tests/mre/` (MRE validation)
 
-### Use Zig For:
-- Direct C library interop
-- Memory layout manipulation
-- System-level programming
-- Assembly integration
+## Why Zig (Not mingw)
+| Aspect | Zig | mingw |
+|--------|-----|-------|
+| Setup | Single brew/release | Complex toolchain |
+| C++ std | Built-in | External gcc/g++ |
+| Target-specific | Native, no prefix | Requires x86_64-w64-mingw32- prefix |
+| Debuggability | Integrated | Separate gdb setup |
 
-### Use Rust For:
-- Business logic
-- Domain modeling
-- Higher-level abstractions
-- Most application code
+## Performance Notes
+- **ReleaseFast**: Optimized, ~50KB DLL, x87 translation runs at 1-5µs per instruction
+- **Debug**: Larger with symbols, ~500KB DLL (development only)
 
-## Common Patterns
-
-### Safe FFI Wrapper
-```zig
-pub extern "C" fn safe_wrapper(ptr: ?*const anyopaque) bool {
-    if (ptr == null) return false;
-    
-    const data = @ptrCast(*const MyData, ptr);
-    return data.isValid();
-}
-```
-
-### Error Handling
-```zig
-const Error = error{
-    InvalidArgument,
-    OutOfMemory,
-    LibraryNotFound,
-};
-
-pub fn doWork() Error!void {
-    // Work that can fail
-}
-```
-
-## Dependencies
-Zig can link C libraries directly:
-```zig
-lib.linkSystemLibrary("rosettax87_jit");
-lib.linkSystemLibrary("winerosetta");
-```
-
-## Formatting
-```bash
-# Format code
-zig fmt .
-
-# Check formatting
-zig fmt --check .
-```
+## Future Optimizations
+- Static library variant (libwinerosetta.a) for Rust linkage
+- Native macOS build for local testing (via `aarch64-macos` target)
 
 ## See Also
 - [Root AGENTS.md](../../AGENTS.md) - Project overview
-- [Architecture](../../docs/architecture.md) - System design
+- [Rust Core](../rust-core/AGENTS.md) - FFI and adapter usage
+- [Integration](../integration/AGENTS.md) - Test harness that validates DLL

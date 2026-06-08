@@ -10,8 +10,17 @@ packages/rust-core/
 ├── Cargo.toml         # Rust dependencies
 └── src/
     ├── ports/         # Port trait definitions
+    │   ├── launcher.rs    # CrossOver/WoW launcher interface
+    │   ├── rosetta.rs     # x87 translation service
+    │   ├── wine.rs        # Wine/WineRosetta integration
+    │   └── silicon_patch.rs # SiliconPatchAdapter trait
     ├── adapters/      # External library wrappers
-    ├── domain/        # Core business logic
+    │   ├── rosettax87_jit_adapter.rs
+    │   ├── mock_wine_adapter.rs # Mock adapter for testing
+    │   └── errors.rs
+    ├── integration/   # CrossOver launcher implementation
+    │   ├── crossover.rs
+    │   └── mod.rs
     └── lib.rs        # Library root
 ```
 
@@ -27,6 +36,12 @@ packages/rust-core/
 - **Adapters wrap external libs**: Never modify C/C++ libraries
 - **FFI safety**: Always validate buffer sizes and pointers
 - **Error handling**: Convert C errors to Rust Results
+
+## Key Adapters
+
+- **rosettax87_jit_adapter.rs**: Wraps the x87 instruction translation engine
+- **mock_wine_adapter.rs**: Test double for Wine/WineRosetta integration (used in hook_injection_tests)
+- **silicon_patch.rs**: Trait defining the Silicon-specific patch interface
 
 ## Common Tasks
 
@@ -138,3 +153,4 @@ impl Drop for MyAdapter {
 ## See Also
 - [Root AGENTS.md](../../AGENTS.md) - Project overview
 - [Architecture](../../docs/architecture.md) - System design
+- [Integration](../integration/AGENTS.md) - Test harness and MRE tests

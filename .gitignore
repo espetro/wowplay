@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+tmp/
+
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Zig
+zig-cache/
+.zig-cache/
+zig-out/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.dylib
+*.so
+*.a
+*.o
+
+# Test artifacts
+*.log
+
+# Environment
+.env
+.env.local
+
+# Claude
+.claude/local/

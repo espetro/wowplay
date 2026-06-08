@@ -1,0 +1,16 @@
+[package]
+name = "wow-silicon-integration"
+version = "0.1.0"
+edition = "2021"
+authors = ["Joaquin Terrasa"]
+
+[dev-dependencies]
+wow-silicon-core = { path = "../rust-core" }
+
+[[test]]
+name = "mre"
+path = "tests/mre/mre_test.rs"
+
+[[test]]
+name = "e2e"
+path = "tests/e2e/e2e_test.rs"

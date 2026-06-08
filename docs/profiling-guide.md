@@ -175,36 +175,17 @@ This runs the full pipeline in 15 seconds (for quick validation).
 
 ## Architecture
 
-```
-┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
-│   WoW.exe via   │────▶│  trace_x87   │────▶│ raw_trace_*.json│
-│   CrossOver     │     │  (Frida)     │     │                 │
-└─────────────────┘     └──────────────┘     └─────────────────┘
-         │                                               │
-         │                       ┌──────────────┐        │
-         └──────────────────────▶│ sample_cpu   │        │
-                                 │ (sample cmd) │        │
-                                 └──────────────┘        │
-                                         │               │
-                                         ▼               ▼
-                              ┌─────────────────┐  ┌──────────┐
-                              │cpu_samples_*.json│  │ address_ │
-                              │                 │  │  map.json│
-                              └─────────────────┘  └──────────┘
-                                         │               │
-                                         └───────┬───────┘
-                                                 ▼
-                                          ┌──────────┐
-                                          │ analyze  │
-                                          │   .py    │
-                                          └──────────┘
-                                                 │
-                                                 ▼
-                                       ┌──────────────────┐
-                                       │ report_*.json    │
-                                       │ (ranked hot      │
-                                       │  functions)      │
-                                       └──────────────────┘
+```mermaid
+flowchart TD
+    wow["WoW.exe via CrossOver"] --> trace_x87["trace_x87 (Frida)"]
+    wow --> sample_cpu["sample_cpu (sample cmd)"]
+    trace_x87 --> raw_trace["raw_trace_*.json"]
+    sample_cpu --> cpu_samples["cpu_samples_*.json"]
+    address_map["address_map.json"]
+    cpu_samples --> analyze["analyze.py"]
+    raw_trace --> analyze
+    address_map --> analyze
+    analyze --> report["report_*.json<br/>(ranked hot functions)"]
 ```
 
 ## See Also

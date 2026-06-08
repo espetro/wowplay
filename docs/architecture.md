@@ -114,23 +114,20 @@ Open-source replacement for closed-source libSiliconPatch.
 
 ## Data Flow
 
-```
-[one-time patch step]
-libDllLdr.dll → patches DivxDecoder.dll → loads mods/winerosetta.dll on game start
-winerosetta reads dlls.txt → loads mods/libSiliconPatch.dll
+```mermaid
+flowchart TD
+    subgraph one-time_patch ["One-time patch step"]
+        libDllLdr["libDllLdr.dll"] -->|"patches"| DivxDecoder["DivxDecoder.dll"] -->|"loads on game start"| winerosetta_mods["mods/winerosetta.dll"]
+        winerosetta_mods -->|"reads"| dlls_txt["dlls.txt"] -->|"loads"| libSiliconPatch["mods/libSiliconPatch.dll"]
+    end
 
-[launch chain]
-rosettax87 (x86/x87 → AArch64 JIT wrapper)
-    ↓
-wineloader2 (x86_64 Wine loader, unsigned for JIT hooking)
-    ↓
-Rosetta 2 (x86_64 → AArch64 translation)
-    ↓
-CrossOver / Wine WoW64 (32-bit Windows on 64-bit Wine)
-    ↓  ← DivxDecoder.dll loads mods/winerosetta.dll here (VEH installed)
-WoW.exe (32-bit x86 Windows)
-    ↓
-Native macOS execution (Apple Silicon)
+    subgraph launch_chain ["Launch chain"]
+        rosettax87["rosettax87<br/>(x86/x87 → AArch64 JIT wrapper)"] --> wineloader2["wineloader2<br/>(x86_64 Wine loader, unsigned for JIT hooking)"]
+        wineloader2 --> rosetta2["Rosetta 2<br/>(x86_64 → AArch64 translation)"]
+        rosetta2 --> crossover["CrossOver / Wine WoW64<br/>(32-bit Windows on 64-bit Wine)"]
+        crossover -->|"DivxDecoder.dll loads mods/winerosetta.dll here (VEH installed)"| wow_exe["WoW.exe<br/>(32-bit x86 Windows)"]
+        wow_exe --> native["Native macOS execution<br/>(Apple Silicon)"]
+    end
 ```
 
 ### Why wineloader2?

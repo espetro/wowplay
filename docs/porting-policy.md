@@ -105,14 +105,15 @@ fn test_rust_matches_c() {
 
 ## Decision Flowchart
 
-```
-Is the library closed source?
-├─ YES → Port to Rust (P0 priority)
-└─ NO → Is it working as-is?
-    ├─ YES → Keep as-is, wrap via FFI
-    └─ NO → Does modifying it require Rust?
-        ├─ YES → Port to Rust (optional)
-        └─ NO → Wrap via FFI, add compatibility layer
+```mermaid
+flowchart TD
+    A{"Is the library closed source?"}
+    A -->|YES| B["Port to Rust<br/>(P0 priority)"]
+    A -->|NO| C{"Is it working as-is?"}
+    C -->|YES| D["Keep as-is, wrap via FFI"]
+    C -->|NO| E{"Does modifying it<br/>require Rust?"}
+    E -->|YES| F["Port to Rust<br/>(optional)"]
+    E -->|NO| G["Wrap via FFI, add<br/>compatibility layer"]
 ```
 
 ## Examples

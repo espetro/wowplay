@@ -80,9 +80,11 @@ echo "→ Applying game patch..."
 # WINEDLLOVERRIDES=d3d9=n,b causes Wine to load this instead of its own d3d9.
 cp "$WOWSILICON_RES/d9vk/d3d9.dll" "$WOW_DIR/d3d9.dll"
 
-# winerosetta.dll and libSiliconPatch.dll go in mods/ and are loaded via dlls.txt
+# winerosetta.dll at game root so WINEDLLOVERRIDES=winerosetta=n,b finds it.
+# Also copy to mods/ for dlls.txt on newer CrossOver/Wine builds.
 mkdir -p "$WOW_DIR/mods"
-cp "$WOWSILICON_RES/winerosetta/winerosetta.dll"      "$WOW_DIR/mods/winerosetta.dll"
+cp "$WOWSILICON_RES/winerosetta/winerosetta.dll" "$WOW_DIR/winerosetta.dll"
+cp "$WOWSILICON_RES/winerosetta/winerosetta.dll" "$WOW_DIR/mods/winerosetta.dll"
 cp "$WOWSILICON_RES/libSiliconPatch/wotlk/libSiliconPatch.dll" "$WOW_DIR/mods/libSiliconPatch.dll"
 
 # libDllLdr.dll enables DivxDecoder-based DLL loading (WoWSilicon requires it)
@@ -121,8 +123,8 @@ export WINEPREFIX="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE"
 export WINESERVER="$CX_HOSTED/wineserver"
 export WINELOADER="$WINELOADER2"
 export WINEDLLPATH="$CX_ROOT/lib/wine:$CX_ROOT/lib64/wine"
-# d3d9=n,b: load native d3d9.dll (D9VK) first, fall back to builtin
-export WINEDLLOVERRIDES="d3d9=n,b"
+# d3d9=n,b: load D9VK; winerosetta=n,b: load x87 VEH patcher
+export WINEDLLOVERRIDES="d3d9=n,b;winerosetta=n,b"
 export DYLD_LIBRARY_PATH="$CX_ROOT/lib:$CX_HOSTED"
 export DYLD_FALLBACK_LIBRARY_PATH="$CX_ROOT/lib:/usr/lib"
 # D9VK/MoltenVK performance settings

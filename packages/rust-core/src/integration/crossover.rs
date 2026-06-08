@@ -122,7 +122,9 @@ pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchEr
     // D9VK: DirectX9 → Vulkan → MoltenVK → Metal. Required for rendering on Apple Silicon.
     copy("d9vk/d3d9.dll", "d3d9.dll")?;
 
-    // winerosetta and libSiliconPatch go in mods/ and are loaded via dlls.txt
+    // winerosetta.dll at game root for WINEDLLOVERRIDES=winerosetta=n,b.
+    // Also in mods/ for dlls.txt on newer CrossOver builds.
+    copy("winerosetta/winerosetta.dll", "winerosetta.dll")?;
     copy("winerosetta/winerosetta.dll", "mods/winerosetta.dll")?;
     copy(
         "libSiliconPatch/wotlk/libSiliconPatch.dll",
@@ -199,8 +201,8 @@ pub fn wine_env(crossover: &Path, bottle_name: &str) -> Vec<(String, String)> {
                 cx_root.display()
             ),
         ),
-        // d3d9=n,b: load native D9VK d3d9.dll first, fall back to Wine builtin
-        ("WINEDLLOVERRIDES".into(), "d3d9=n,b".into()),
+        // d3d9=n,b: load D9VK; winerosetta=n,b: load x87 VEH patcher
+        ("WINEDLLOVERRIDES".into(), "d3d9=n,b;winerosetta=n,b".into()),
         (
             "DYLD_LIBRARY_PATH".into(),
             format!("{}:{}", cx_root.join("lib").display(), cx_hosted.display()),

@@ -6,6 +6,14 @@
 #include <d3d9.h>
 #include <shlobj.h>
 
+static void log_to_file(const char* msg) {
+    FILE* f = fopen("C:/winerosetta_debug.log", "a");
+    if (f) {
+        fprintf(f, "%s\n", msg);
+        fclose(f);
+    }
+}
+
 LONG WINAPI
 VectoredHandler1(
     struct _EXCEPTION_POINTERS *ExceptionInfo
@@ -13,8 +21,13 @@ VectoredHandler1(
 {
     if (ExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_ILLEGAL_INSTRUCTION) {
         auto context = ExceptionInfo->ContextRecord;
+        char buffer[256];
+        uint16_t instr = *reinterpret_cast<uint16_t*>(context->Eip);
+        sprintf(buffer, "[VEH] ILLEGAL_INSTRUCTION at EIP=%08X, instr=%04X", context->Eip, instr);
+        log_to_file(buffer);
 
-        if (*reinterpret_cast<uint16_t*>(context->Eip) == 0xD063) {
+        if (instr == 0xD063) {
+            log_to_file("[VEH] -> Matched ARPL (0xD063), emulating");
             // emulate arpl ax, dx
             auto dest = reinterpret_cast<uint16_t*>(&context->Eax);
             auto src = reinterpret_cast<uint16_t*>(&context->Edx);
@@ -29,7 +42,8 @@ VectoredHandler1(
         }
 
         // fcomp st -> fcomp st0 fixup (WoW 3.3.5a specific)
-        if (*reinterpret_cast<uint16_t*>(context->Eip) == 0xD8DC) {
+        if (instr == 0xD8DC) {
+            log_to_file("[VEH] -> Matched FCOMP (0xD8DC), patching");
             DWORD oldProtect;
             VirtualProtect(reinterpret_cast<void*>(context->Eip), 2, PAGE_EXECUTE_READWRITE, &oldProtect);
             *reinterpret_cast<uint16_t*>(context->Eip) = 0xD8D8; // fcomp st0
@@ -37,9 +51,8 @@ VectoredHandler1(
             return EXCEPTION_CONTINUE_EXECUTION;
         }
 
-        char buffer[256];
-        sprintf(buffer, "Exception: %08X at %08X", ExceptionInfo->ExceptionRecord->ExceptionCode, context->Eip);
-        MessageBoxA(NULL, buffer, "winerosetta", MB_OK);
+        sprintf(buffer, "[VEH] -> No match for instr=%04X at %08X", instr, context->Eip);
+        log_to_file(buffer);
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }

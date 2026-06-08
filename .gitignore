@@ -41,3 +41,18 @@ zig-out/
 
 # Worktrees
 .worktrees/
+
+# Profiling data
+data/profiling/reports/
+data/profiling/raw_trace_*.json
+data/profiling/cpu_samples_*.json
+data/profiling/*.txt
+!data/profiling/.gitkeep
+!data/profiling/address_map.json
+
+# Python profiler
+tools/profiler/__pycache__/
+tools/profiler/.venv/
+tools/profiler/uv.lock
+tools/profiler/*.egg-info/
+tools/profiler/.pytest_cache/

@@ -1,6 +1,8 @@
 [tools]
 rust = "1.96"   # current stable; see packages/rust-core/Cargo.toml for edition
 zig = "0.16.0"  # used to cross-compile winerosetta.dll (x86-windows-gnu)
+python = "3.14" # for profiling toolkit (frida, analysis scripts)
+uv = "0.9.22"   # Python package manager for tools/profiler/
 
 [env]
 # Ensure Zig is on PATH for scripts/setup.sh and scripts/pre-commit.sh

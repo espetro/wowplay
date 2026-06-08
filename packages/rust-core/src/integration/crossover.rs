@@ -16,8 +16,10 @@ use crate::ports::launcher::WowLauncherPort;
 
 const CX_HOSTED_REL: &str = "Contents/SharedSupport/CrossOver/CrossOver-Hosted Application";
 
-// Must use wineloader64 (x86_64): macOS 15 dropped i386 support so the 32-bit
-// wineloader can no longer exec. Rosetta 2 translates the x86_64 loader.
+// CrossOver may ship wineloader (x86_64) or wineloader64 depending on version.
+// We check both at runtime.
+const WINELOADER_REL: &str =
+    "Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wineloader";
 const WINELOADER64_REL: &str =
     "Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wineloader64";
 
@@ -63,20 +65,27 @@ pub fn wowsilicon_resources(wowsilicon: &Path) -> PathBuf {
     wowsilicon.join(WOWSILICON_BUNDLE)
 }
 
-/// Returns the path to CrossOver's `wineloader64` binary (x86_64).
+/// Returns the path to CrossOver's wineloader binary.
+///
+/// Checks for `wineloader64` first (newer CrossOver), then falls back
+/// to `wineloader` (older/other versions).
 pub fn wineloader_path(crossover: &Path) -> PathBuf {
-    crossover.join(WINELOADER64_REL)
+    let loader64 = crossover.join(WINELOADER64_REL);
+    if loader64.exists() {
+        return loader64;
+    }
+    crossover.join(WINELOADER_REL)
 }
 
-/// Creates an unsigned copy of `wineloader64` at `/tmp/cx-bin/wineloader64`.
+/// Creates an unsigned copy of CrossOver's wineloader at `/tmp/cx-bin/wineloader64`.
 ///
 /// Wine re-execs itself by searching for the loader by its current filename.
-/// We keep the name exactly `wineloader64` in a writable dir.
+/// We keep the name exactly `wineloader64` in a writable dir for compatibility.
 pub fn create_wineloader2(crossover: &Path) -> Result<PathBuf, LaunchError> {
     let src = wineloader_path(crossover);
     if !src.exists() {
         return Err(LaunchError::CrossoverNotFound(format!(
-            "wineloader64 not found at {}",
+            "wineloader not found at {}",
             src.display()
         )));
     }
@@ -86,8 +95,7 @@ pub fn create_wineloader2(crossover: &Path) -> Result<PathBuf, LaunchError> {
         .map_err(|e| LaunchError::SetupFailed(format!("mkdir /tmp/cx-bin: {e}")))?;
 
     let dst = dir.join("wineloader64");
-    fs::copy(&src, &dst)
-        .map_err(|e| LaunchError::SetupFailed(format!("copy wineloader64: {e}")))?;
+    fs::copy(&src, &dst).map_err(|e| LaunchError::SetupFailed(format!("copy wineloader: {e}")))?;
 
     Command::new("codesign")
         .args(["--remove-signature", &dst.display().to_string()])

@@ -15,6 +15,10 @@ zig-cache/
 .zig-cache/
 zig-out/
 
+# Python
+__pycache__/
+*.pyc
+
 # Editor
 .vscode/
 .idea/
@@ -30,6 +34,9 @@ zig-out/
 
 # Test artifacts
 *.log
+
+# Launch logs
+data/launch/
 
 # Environment
 .env

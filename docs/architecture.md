@@ -115,27 +115,42 @@ Open-source replacement for closed-source libSiliconPatch.
 ## Data Flow
 
 ```
+[one-time patch step]
+libDllLdr.dll → patches DivxDecoder.dll → loads mods/winerosetta.dll on game start
+winerosetta reads dlls.txt → loads mods/libSiliconPatch.dll
+
+[launch chain]
+rosettax87 (x86/x87 → AArch64 JIT wrapper)
+    ↓
+wineloader2 (x86_64 Wine loader, unsigned for JIT hooking)
+    ↓
+Rosetta 2 (x86_64 → AArch64 translation)
+    ↓
+CrossOver / Wine WoW64 (32-bit Windows on 64-bit Wine)
+    ↓  ← DivxDecoder.dll loads mods/winerosetta.dll here (VEH installed)
 WoW.exe (32-bit x86 Windows)
-    ↓
-wineloader2 (x86 Wine loader, unsigned for JIT hooking)
-    ↓
-CrossOver (Windows API translation)
-    ↓
-winerosetta (Rosetta 2 + x87 VEH patcher)
-    ↓
-rosettax87_jit (x87 → AArch64 JIT translation)
     ↓
 Native macOS execution (Apple Silicon)
 ```
 
 ### Why wineloader2?
 
-CrossOver's `wineloader` is code-signed with hardened runtime flags that prevent runtime modification. Since `rosettax87_jit` needs to install a JIT translation hook, we:
-1. Copy `wineloader` → `wineloader2`
+CrossOver's `wineloader` (x86_64 on CrossOver 24) is code-signed with hardened runtime flags that prevent runtime modification. Since `rosettax87` needs to install JIT translation hooks, we:
+1. Copy `wineloader` (x86_64) → `wineloader2`
 2. Remove the code signature with `codesign --remove-signature`
-3. Use `wineloader2` for launching 32-bit x86 applications like WoW 3.3.5a
+3. Launch WoW as: `rosettax87 wineloader2 WoW.exe`
 
-This is the same approach used by TurtleSilicon and other Apple Silicon WoW launchers.
+**Why not the 32-bit wineloader?** macOS 10.15+ removed kernel support for exec-ing i386 Mach-O binaries entirely. `wineloader2` must be x86_64 so Rosetta 2 can run it. Wine's internal WoW64 thunks then load the 32-bit `WoW.exe` inside that 64-bit wine process.
+
+### Why DivxDecoder bootstrap?
+
+`winerosetta.dll` cannot load itself — it must be brought in by Wine's native DLL loader. The client's existing `DivxDecoder.dll` is the injection anchor:
+1. `libDllLdr.dll,PatchDivxDecoder` rewrites `DivxDecoder.dll` in-place (backed up to `.bak`) to import `mods/winerosetta.dll`.
+2. When WoW.exe starts, Wine loads DivxDecoder.dll as usual, which now pulls in winerosetta.
+3. winerosetta installs its vectored exception handler (VEH) and reads `dlls.txt` to load `mods/libSiliconPatch.dll`.
+4. The VEH hot-patches illegal x87 opcodes (`fcomp st`, `arpl`) that rosettax87's JIT alone cannot handle.
+
+This is the recipe used by WoWSilicon (applyGamePatch + patchDivxDecoder) for CrossOver 24.
 
 ## Testing Strategy
 

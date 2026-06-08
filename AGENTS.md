@@ -3,6 +3,11 @@
 ## Project Overview
 Working tool for World of Warcraft 3.3.5a on Apple Silicon using a Ports & Adapters architecture.
 
+## Commit Strategy
+
+- Ensure changes are saved in atomic commits
+- Follow conventional commit message style
+
 ## Quick Start for Agents
 1. Read the relevant AGENTS.md for your layer:
    - Root (this file): Project overview, architecture links

@@ -115,16 +115,27 @@ Open-source replacement for closed-source libSiliconPatch.
 ## Data Flow
 
 ```
-WoW.exe (Windows)
+WoW.exe (32-bit x86 Windows)
+    ↓
+wineloader2 (x86 Wine loader, unsigned for JIT hooking)
     ↓
 CrossOver (Windows API translation)
     ↓
-winerosetta (Rosetta 2 injection)
+winerosetta (Rosetta 2 + x87 VEH patcher)
     ↓
-rosettax87_jit (x87 → AArch64 translation)
+rosettax87_jit (x87 → AArch64 JIT translation)
     ↓
-Native macOS execution
+Native macOS execution (Apple Silicon)
 ```
+
+### Why wineloader2?
+
+CrossOver's `wineloader` is code-signed with hardened runtime flags that prevent runtime modification. Since `rosettax87_jit` needs to install a JIT translation hook, we:
+1. Copy `wineloader` → `wineloader2`
+2. Remove the code signature with `codesign --remove-signature`
+3. Use `wineloader2` for launching 32-bit x86 applications like WoW 3.3.5a
+
+This is the same approach used by TurtleSilicon and other Apple Silicon WoW launchers.
 
 ## Testing Strategy
 

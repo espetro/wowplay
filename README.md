@@ -29,8 +29,8 @@ See [docs/architecture.md](docs/architecture.md) for details.
 - macOS (Apple Silicon)
 - Rust 1.85+
 - Zig 0.13+ (optional)
-- CrossOver 26+
-- WoW 3.3.5a installation
+- CrossOver 23+
+- WoW 3.3.5a installation (32-bit x86 client)
 
 ### Setup
 
@@ -52,8 +52,11 @@ brew install rosettax87_jit winerosetta
 # Run tests
 cargo test
 
-# Launch WoW (after configuration)
-cargo run --bin wow_launcher -- --bottle ~/Crossover/Bottles/WoW
+# Launch WoW (after setup)
+WOW_DIR="$HOME/Documents/ChromieCraft_3.3.5a" ./scripts/launch-wow.sh
+
+# Diagnose without launching
+./scripts/launch-wow.sh --diagnose
 ```
 
 ## Documentation
@@ -77,6 +80,23 @@ play-wow-on-silicon/
 └── scripts/              # Development tooling
 ```
 
+## Troubleshooting
+
+### "DivxDecoder.dll.InitializeDivxDecoder" error
+This means you're using the wrong Wine loader. WoW 3.3.5a is a **32-bit x86** application and requires `wineloader2` (x86), not `wineloader64` (x86_64). The launch script automatically creates `wineloader2` by copying and unsigning the original `wineloader`.
+
+### Game crashes at character selection
+Ensure rosettax87 service is running:
+```bash
+sudo rosettax87 &
+```
+
+### "damaged" app warnings
+The script removes macOS quarantine flags from binaries, but you may need to allow them in System Settings > Privacy & Security.
+
+### Diagnostics
+Run `./scripts/launch-wow.sh --diagnose` to verify all components before launching.
+
 ## Contributing
 
 This project uses an agent-first development workflow. See [AGENTS.md](AGENTS.md) for details.
@@ -94,8 +114,8 @@ MIT License - See LICENSE file for details
 ## Status
 
 **Phase 0**: ✅ Foundation & Agent Infrastructure - Complete
-**Phase 1**: ⏳ Architecture & Integration Layer - In Progress  
-**Phase 2**: 🔜 Working WoW 3.3.5a POC - Not Started
+**Phase 1**: ✅ Architecture & Integration Layer - Complete
+**Phase 2**: ⏳ Working WoW 3.3.5a POC - In Progress
 **Phase 3**: 🔜 Progressive Enhancement - Not Started
 
 ## Acknowledgments

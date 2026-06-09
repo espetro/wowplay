@@ -35,11 +35,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to build from source or hack 
 wowplay setup --wow-dir ~/Documents/WoW_3.3.5a \
   --patching-dir vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching
 
-# 3. Launch
+# 3. Launch (CrossOver — default)
 wowplay run --wow-dir ~/Documents/WoW_3.3.5a
 
+# Launch with Whisky instead of CrossOver
+wowplay run --runner whisky --wow-dir ~/Documents/WoW_3.3.5a
+
+# Whisky with custom app location
+wowplay run --runner whisky --whisky-bundle ~/Applications/Whisky.app --wow-dir ~/Documents/WoW_3.3.5a
+
 # Diagnose without launching
-./scripts/launch-wow.sh --diagnose
+wowplay diagnose
 ```
 
 ## Troubleshooting

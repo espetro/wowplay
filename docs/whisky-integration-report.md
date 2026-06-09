@@ -372,13 +372,20 @@ cargo test
 # Diagnose
 ./target/debug/wowplay diagnose
 
-# Run with Whisky
+# Run with Whisky (auto-detects ~/Applications or /Applications)
 ./target/debug/wowplay run \
   --wow-dir ~/Documents/ChromieCraft_3.3.5a \
   --runner whisky \
   --bottle Win10Whisky
 
+# Run with Whisky at custom path
+./target/debug/wowplay run \
+  --runner whisky \
+  --whisky-bundle ~/Applications/Whisky.app \
+  --wow-dir ~/Documents/ChromieCraft_3.3.5a \
+  --bottle Win10Whisky
+
 # Manual test
 /Applications/Whisky.app/Contents/Resources/WhiskyCmd shellenv Win10Whisky
-wine64 ~/Documents/ChromieCraft_3.3.5a/Wow.exe
+wine64 ~/Documents/ChromieCraft_3.3.5a/WoW.exe
 ```

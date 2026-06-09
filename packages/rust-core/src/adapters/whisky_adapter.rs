@@ -77,9 +77,32 @@ impl WhiskyAdapter {
                 if let Some(path_start) = line.find("~/Library") {
                     let path_str = &line[path_start..];
                     let path_str = path_str.trim_end_matches('|').trim();
-                    let expanded = path_str
-                        .replace("~", &home_dir().unwrap_or_default().display().to_string());
-                    return Ok(PathBuf::from(expanded));
+                    let home = home_dir().unwrap_or_default();
+                    let expanded = path_str.replace("~", &home.display().to_string());
+                    let path = PathBuf::from(expanded);
+
+                    // Verify the path exists; if not, try the correct base path
+                    // (Whisky reports "Containers/Whisky" but the actual bundle ID is
+                    // "com.isaacmarovitz.Whisky")
+                    if path.exists() {
+                        return Ok(path);
+                    }
+
+                    // Try the correct path: Containers/com.isaacmarovitz.Whisky/Bottles/<uuid>
+                    let home = home.display().to_string();
+                    let corrected = path_str
+                        .replace(
+                            "~/Library/Containers/Whisky/",
+                            &format!("{}/Library/Containers/com.isaacmarovitz.Whisky/", home),
+                        )
+                        .replace("~", &home);
+                    let corrected_path = PathBuf::from(corrected);
+                    if corrected_path.exists() {
+                        return Ok(corrected_path);
+                    }
+
+                    // Return the original path even if it doesn't exist — wine will auto-create
+                    return Ok(path);
                 }
             }
         }

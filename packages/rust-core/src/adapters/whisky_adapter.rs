@@ -11,6 +11,10 @@ use crate::adapters::errors::LaunchError;
 use crate::ports::runner::RunnerPort;
 
 const WHISKY_APP_PATHS: &[&str] = &["/Applications/Whisky.app", "~/Applications/Whisky.app"];
+const MOONSHINE_APP_PATHS: &[&str] = &[
+    "/Applications/Moonshine.app",
+    "~/Applications/Moonshine.app",
+];
 const WHISKY_CMD_REL: &str = "Contents/Resources/WhiskyCmd";
 const WINE_BIN_DIR: &str = "Libraries/Wine/bin";
 
@@ -179,6 +183,26 @@ impl RunnerPort for WhiskyAdapter {
     }
 }
 
+/// Discover Moonshine.app on this machine.
+///
+/// Moonshine is a Whisky fork — same Wine layout, same binary paths.
+pub fn find_moonshine() -> Result<PathBuf, LaunchError> {
+    let home = home_dir().unwrap_or_default();
+    for path in MOONSHINE_APP_PATHS {
+        let expanded = if let Some(rest) = path.strip_prefix("~/") {
+            home.join(rest)
+        } else {
+            PathBuf::from(path)
+        };
+        if expanded.exists() {
+            return Ok(expanded);
+        }
+    }
+    Err(LaunchError::SetupFailed(
+        "Moonshine.app not found in ~/Applications or /Applications; install from github.com/ybmeng/moonshine".into(),
+    ))
+}
+
 fn home_dir() -> Option<PathBuf> {
     std::env::var("HOME").ok().map(PathBuf::from)
 }
@@ -189,8 +213,6 @@ mod tests {
 
     #[test]
     fn test_find_bundle_when_whisky_not_installed() {
-        // This test will be skipped if Whisky is installed anywhere
-        // In CI or clean environments, it validates the error message
         let any_installed = WHISKY_APP_PATHS.iter().any(|p| {
             let expanded = if let Some(rest) = p.strip_prefix("~/") {
                 home_dir().unwrap_or_default().join(rest)
@@ -204,6 +226,24 @@ mod tests {
             assert!(result.is_err());
             let err = result.unwrap_err().to_string();
             assert!(err.contains("Whisky.app not found"));
+        }
+    }
+
+    #[test]
+    fn test_find_moonshine_when_not_installed() {
+        let any_installed = MOONSHINE_APP_PATHS.iter().any(|p| {
+            let expanded = if let Some(rest) = p.strip_prefix("~/") {
+                home_dir().unwrap_or_default().join(rest)
+            } else {
+                PathBuf::from(p)
+            };
+            expanded.exists()
+        });
+        if !any_installed {
+            let result = find_moonshine();
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("Moonshine.app not found"));
         }
     }
 

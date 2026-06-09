@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::adapters::crossover_adapter::CrossOverAdapter;
 use crate::adapters::errors::LaunchError;
-use crate::adapters::whisky_adapter::WhiskyAdapter;
+use crate::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
 use crate::ports::runner::RunnerPort;
 
 /// Registry for discovering and instantiating runners.
@@ -30,6 +30,10 @@ impl RunnerRegistry {
                 let bundle = WhiskyAdapter::find_bundle()?;
                 Ok(Arc::new(WhiskyAdapter::new(bundle)))
             }
+            "moonshine" => {
+                let bundle = find_moonshine()?;
+                Ok(Arc::new(WhiskyAdapter::new(bundle)))
+            }
             _ => Err(LaunchError::SetupFailed(format!("Unknown runner: {name}"))),
         }
     }
@@ -41,6 +45,6 @@ impl RunnerRegistry {
 
     /// All runner names known to the registry.
     pub fn available_runners() -> Vec<&'static str> {
-        vec!["crossover", "whisky"]
+        vec!["crossover", "whisky", "moonshine"]
     }
 }

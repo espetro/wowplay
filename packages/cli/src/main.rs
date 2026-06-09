@@ -7,6 +7,7 @@ use wow_silicon_core::integration::crossover::{
     apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
     is_rosetta_service_running, wineloader2_path, wowsilicon_resources,
 };
+use wow_silicon_core::adapters::whisky_adapter::WhiskyAdapter;
 use wow_silicon_core::integration::wow_launcher::WowLauncher;
 use wow_silicon_core::runner_registry::RunnerRegistry;
 
@@ -102,6 +103,16 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
             None
         }
     };
+
+    info("Checking Whisky…");
+    match WhiskyAdapter::find_bundle() {
+        Ok(p) => {
+            ok(&format!("Whisky: {}", p.display()));
+        }
+        Err(e) => {
+            warn(&format!("Whisky: {e}"));
+        }
+    }
 
     info("Checking patching resources…");
     match resolve_patching_dir(patching_dir.cloned()) {

@@ -16,6 +16,7 @@ pub use adapters::crossover_adapter::CrossOverAdapter;
 pub use adapters::errors::{AdapterError, LaunchError, TranslationError};
 pub use adapters::mock_wine_adapter::MockWineAdapter;
 pub use adapters::rosettax87_jit_adapter::Rosettax87JitAdapter;
+pub use adapters::whisky_adapter::WhiskyAdapter;
 pub use ports::launcher::{RosettaLauncherPort, WowLauncherPort};
 pub use ports::rosetta::RosettaTranslationPort;
 pub use ports::runner::RunnerPort;

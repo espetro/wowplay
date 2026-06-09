@@ -1,0 +1,57 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - run: brew install zig
+
+      - name: Build wowplay
+        run: cargo build --release --target aarch64-apple-darwin -p wowplay
+
+      - name: Build winerosetta.dll
+        run: zig build --release=safe
+        working-directory: packages/zig-glue
+
+      - name: Stage release bundle
+        run: |
+          mkdir -p dist/patching
+          cp target/aarch64-apple-darwin/release/wowplay dist/wowplay
+          cp -R vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching/. dist/patching/
+          cp packages/zig-glue/zig-out/bin/winerosetta.dll dist/patching/winerosetta/winerosetta.dll
+
+      - name: Sign binary
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE }}" ]; then
+            echo "${{ secrets.APPLE_CERTIFICATE }}" | base64 --decode > cert.p12
+            security create-keychain -p "" build.keychain
+            security import cert.p12 -k build.keychain -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+            codesign --sign "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)" --options runtime --timestamp dist/wowplay
+          else
+            codesign -s - dist/wowplay
+          fi
+
+      - name: Create zip
+        run: cd dist && zip -r ../wowplay-${{ github.ref_name }}-macos-arm64.zip .
+
+      - name: Upload to release
+        run: gh release upload "${{ github.ref_name }}" wowplay-*-macos-arm64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

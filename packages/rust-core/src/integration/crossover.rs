@@ -243,27 +243,38 @@ pub fn is_rosetta_service_running() -> bool {
             .unwrap_or(false)
 }
 
-fn ensure_rosetta_service(rosettax87: &Path, no_sudo: bool) -> Result<(), LaunchError> {
+fn ensure_rosetta_service(rosettax87: &Path, use_sudo: bool) -> Result<(), LaunchError> {
     if is_rosetta_service_running() {
         return Ok(());
     }
-    if no_sudo {
+    if use_sudo {
+        // Deprecated path: was required before rosettax87 used fork/ptrace.
         eprintln!(
-            "  \x1b[33m[warn]\x1b[0m rosettax87 not running — start manually: sudo {}",
-            rosettax87.display()
+            "  \x1b[33m[warn]\x1b[0m --sudo is deprecated; rosettax87 no longer requires root"
         );
-        return Ok(());
-    }
-    let sudo_cached = Command::new("sudo")
-        .args(["-n", "true"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-    if !sudo_cached {
-        eprintln!("  \x1b[34m[info]\x1b[0m rosettax87 requires root to install x87 CPU hooks. Enter your password when prompted.");
-        Command::new("sudo")
-            .arg("-v")
+        let sudo_cached = Command::new("sudo")
+            .args(["-n", "true"])
             .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !sudo_cached {
+            eprintln!("  \x1b[34m[info]\x1b[0m Enter your password when prompted.");
+            Command::new("sudo")
+                .arg("-v")
+                .status()
+                .map_err(|e| match e.kind() {
+                    std::io::ErrorKind::NotFound => {
+                        LaunchError::SetupFailed("sudo not found on this system".into())
+                    }
+                    std::io::ErrorKind::PermissionDenied => {
+                        LaunchError::SetupFailed("sudo authentication failed".into())
+                    }
+                    _ => LaunchError::SpawnFailed(e),
+                })?;
+        }
+        Command::new("sudo")
+            .args(["-n", &rosettax87.display().to_string()])
+            .spawn()
             .map_err(|e| match e.kind() {
                 std::io::ErrorKind::NotFound => {
                     LaunchError::SetupFailed("sudo not found on this system".into())
@@ -273,19 +284,11 @@ fn ensure_rosetta_service(rosettax87: &Path, no_sudo: bool) -> Result<(), Launch
                 }
                 _ => LaunchError::SpawnFailed(e),
             })?;
+    } else {
+        Command::new(rosettax87)
+            .spawn()
+            .map_err(LaunchError::SpawnFailed)?;
     }
-    Command::new("sudo")
-        .args(["-n", &rosettax87.display().to_string()])
-        .spawn()
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => {
-                LaunchError::SetupFailed("sudo not found on this system".into())
-            }
-            std::io::ErrorKind::PermissionDenied => {
-                LaunchError::SetupFailed("sudo authentication failed".into())
-            }
-            _ => LaunchError::SpawnFailed(e),
-        })?;
     std::thread::sleep(std::time::Duration::from_secs(1));
     if !is_rosetta_service_running() {
         return Err(LaunchError::SetupFailed(
@@ -352,7 +355,7 @@ pub struct CrossoverLauncher {
     crossover: PathBuf,
     wowsilicon_resources: PathBuf,
     bottle: String,
-    no_sudo: bool,
+    use_sudo: bool,
 }
 
 impl CrossoverLauncher {
@@ -370,7 +373,7 @@ impl CrossoverLauncher {
             crossover,
             wowsilicon_resources,
             bottle: bottle.to_string(),
-            no_sudo: false,
+            use_sudo: false,
         })
     }
 
@@ -381,13 +384,14 @@ impl CrossoverLauncher {
             crossover,
             wowsilicon_resources: patching_dir,
             bottle: bottle.to_string(),
-            no_sudo: false,
+            use_sudo: false,
         })
     }
 
-    /// Skip `sudo` when starting rosettax87; print a manual-start hint instead.
-    pub fn no_sudo(mut self) -> Self {
-        self.no_sudo = true;
+    /// Deprecated: sudo is no longer required; rosettax87 now installs its JIT hook
+    /// via fork/ptrace without root. Kept for backward compatibility.
+    pub fn with_sudo(mut self) -> Self {
+        self.use_sudo = true;
         self
     }
 
@@ -404,7 +408,7 @@ impl CrossoverLauncher {
 
         let rosettax87 = wow_dir.join("rosettax87/rosettax87");
         bootstrap_divx_decoder(wow_dir, &wineloader2)?;
-        ensure_rosetta_service(&rosettax87, self.no_sudo)?;
+        ensure_rosetta_service(&rosettax87, self.use_sudo)?;
 
         let wow_exe = ["WoW.exe", "wow.exe", "Wow.exe"]
             .iter()

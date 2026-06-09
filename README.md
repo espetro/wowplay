@@ -66,6 +66,7 @@ WOW_DIR="$HOME/Documents/ChromieCraft_3.3.5a" ./scripts/launch-wow.sh
 - [Porting Policy](docs/porting-policy.md) - When and why we port to Rust
 - [Git Workflow](docs/git-workflow.md) - Commit format and workflow
 - [Testing Strategy](docs/testing-strategy.md) - Testing approach
+- [Release Process](docs/release-process.md) - Versioning and release workflow
 
 ## Project Structure
 

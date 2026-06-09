@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Build, sign, notarize, and package wowplay as a signed ARM64 CLI binary.
+# Build, sign, notarize, and upload wowplay as a signed ARM64 CLI binary.
 #
 # Produces:
-#   dist/wowplay                  — signed ARM64 CLI binary
-#   dist/patching/                — patching resources from vendor/wowsilicon (winerosetta.dll overridden by zig-glue)
-#   dist/wowplay-VERSION.zip      — archive for GitHub releases
+#   dist/wowplay                        — signed ARM64 CLI binary
+#   dist/patching/                      — patching resources
+#   wowplay-vVERSION-macos-arm64.zip    — archive uploaded to the GitHub release
 #
 # Local install (default):
 #   Copies the binary to ~/.local/bin/wowplay.
 #   Pass --skip-install to suppress.
 #
 # Usage:
-#   ./scripts/release.sh [--profile <keychain-profile>] [--skip-notarize] [--skip-install]
+#   ./scripts/release.sh [--profile <keychain-profile>] [--skip-notarize] [--skip-install] [--skip-upload]
 #
 # Apple notarization credentials:
 #   Store them once: xcrun notarytool store-credentials default \
@@ -30,11 +30,13 @@ DIST_DIR="${REPO_ROOT}/dist"
 KEYCHAIN_PROFILE="default"
 SKIP_NOTARIZE=false
 SKIP_INSTALL=false
+SKIP_UPLOAD=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile)       KEYCHAIN_PROFILE="$2"; shift 2 ;;
     --skip-notarize) SKIP_NOTARIZE=true; shift ;;
     --skip-install)  SKIP_INSTALL=true; shift ;;
+    --skip-upload)   SKIP_UPLOAD=true; shift ;;
     *) echo "Unknown flag: $1" && exit 1 ;;
   esac
 done
@@ -108,7 +110,8 @@ fi
 
 # ── Package ──────────────────────────────────────────────────────────────────
 
-ZIP_PATH="${REPO_ROOT}/${BIN_NAME}-${VERSION}.zip"
+ZIP_NAME="${BIN_NAME}-v${VERSION}-macos-arm64.zip"
+ZIP_PATH="${REPO_ROOT}/${ZIP_NAME}"
 echo ""
 echo "==> Packaging ${ZIP_PATH}…"
 (cd "${DIST_DIR}" && zip -r "${ZIP_PATH}" .)
@@ -124,11 +127,19 @@ if [[ "${SKIP_NOTARIZE}" != "true" ]]; then
   # stapling). The notarization ticket is verified online by Gatekeeper.
 fi
 
+# ── GitHub release upload ────────────────────────────────────────────────────
+
+TAG="v${VERSION}"
+if [[ "${SKIP_UPLOAD}" != "true" ]]; then
+  echo ""
+  echo "==> Uploading ${ZIP_NAME} to GitHub release ${TAG}…"
+  gh release upload "${TAG}" "${ZIP_PATH}" --clobber
+  echo "    Uploaded: https://github.com/espetro/wowplay/releases/tag/${TAG}"
+fi
+
 echo ""
 echo "Done. wowplay v${VERSION} is ready:"
 echo "  Binary  : ${DIST_DIR}/${BIN_NAME}"
 echo "  Patching: ${DIST_DIR}/patching/"
 echo "  Archive : ${ZIP_PATH}"
 [[ "${SKIP_INSTALL}" != "true" ]] && echo "  Installed: ~/.local/bin/${BIN_NAME}"
-echo ""
-echo "Upload ${ZIP_PATH} to the GitHub v${VERSION} release."

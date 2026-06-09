@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-09
+
+### Added
+- `--runner` flag: choose between `crossover`, `whisky`, and `moonshine`
+- `--whisky-bundle` flag: override the path to Whisky.app
+- Runner table shown during `wowplay setup` listing all detected runners
+- 4-path patching resolution in `wowplay setup` (staged resources, symlinks, in-place, bundled)
+
+### Changed
+- Log path is now printed before the process starts (was printed after exit)
+- Removed "WoW started (pid …)" message; process output no longer mirrored to terminal when logging
+
 ## [0.2.0] - 2026-06-09
 
 ### Added

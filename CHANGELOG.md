@@ -11,6 +11,25 @@ For per-package changes, see the individual CHANGELOGs:
 - [`packages/integration/CHANGELOG.md`](packages/integration/CHANGELOG.md)
 - [`tools/profiler/CHANGELOG.md`](tools/profiler/CHANGELOG.md)
 
+## [0.3.0] - 2026-06-09
+
+### Added
+- Whisky runner adapter: run WoW via Whisky or Moonshine (free alternatives to CrossOver)
+- `--runner` flag to select the runner backend (`crossover`, `whisky`, `moonshine`)
+- `--whisky-bundle` flag to point at a custom Whisky.app path
+- Runner table shown during `wowplay setup` listing all detected runners
+- 4-path patching resolution and resource staging in setup
+- Build-release CI workflow triggered on `v*` tags
+- Lefthook pre-commit hook for Rust typecheck and Zig fmt
+
+### Fixed
+- Whisky bottle path resolution for both Whisky and Moonshine app layouts
+- Support for user-local `~/Applications/Whisky.app` installation
+
+### Changed
+- Launch output: log path printed before process start; verbose `[info]` lines removed
+- Log tee writes only to file — no longer mirrors WoW stdout/stderr to terminal
+
 ## [0.2.0] - 2026-06-09
 
 ### Added

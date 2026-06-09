@@ -1,0 +1,3 @@
+[submodule "vendor/rosettax87_jit"]
+	path = vendor/rosettax87_jit
+	url = https://github.com/Lifeisawful/rosettax87_jit

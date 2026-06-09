@@ -35,8 +35,8 @@ ROSETTA_JIT_BIN="$ROSETTA_JIT_SRC/build/bin/runtime_loader"
 
 if [ ! -f "$ROSETTA_JIT_BIN" ]; then
     echo "→ Building rosettax87_jit..."
-    if [ ! -d "$ROSETTA_JIT_SRC" ]; then
-        git clone https://github.com/Lifeisawful/rosettax87_jit "$ROSETTA_JIT_SRC"
+    if [ ! -d "$ROSETTA_JIT_SRC/.git" ]; then
+        git -C "$REPO_ROOT" submodule update --init --recursive vendor/rosettax87_jit
     fi
     cmake -B "$ROSETTA_JIT_SRC/build" -DCMAKE_BUILD_TYPE=Release "$ROSETTA_JIT_SRC"
     cmake --build "$ROSETTA_JIT_SRC/build" --config Release

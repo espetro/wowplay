@@ -380,17 +380,15 @@ fn main() {
                 }
             };
 
-            info(&format!("Launching WoW from {}…", wow_dir.display()));
+            if let Some(ref p) = log_path {
+                eprintln!("Logs are saved to: {}", p.display());
+            }
+
             let session = launcher
                 .launch_wow_logged(&wow_dir, log_path.as_deref())
                 .unwrap_or_else(|e| die(&e.to_string()));
 
-            ok(&format!("WoW started (pid {})", session.pid()));
             session.wait().unwrap_or_else(|e| die(&e.to_string()));
-
-            if let Some(ref p) = log_path {
-                info(&format!("log: {}", p.display()));
-            }
         }
     }
 }

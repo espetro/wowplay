@@ -63,6 +63,9 @@ WoW 3.3.5a is a **32-bit x86** application and requires the `wineloader2` (x86) 
 ### Game crashes at character selection or during gameplay
 Ensure patching resources are staged: re-run `wowplay setup --wow-dir <dir>`.
 
+### Window disappears or can't be focused after switching apps
+When WoW is running fullscreen via Wine, switching to another app can cause the window to minimize and become unreachable. **Workaround:** run the game in windowed mode. If you use the WoWSilicon GUI app (rather than the `wowplay` CLI), it includes an aggressive focus-timer that forcibly keeps the game frontmost and may interfere with normal app switching.
+
 ### "damaged" / Gatekeeper warnings
 Right-click the `wowplay` binary and choose **Open** once to bypass Gatekeeper for ad-hoc signed builds.
 

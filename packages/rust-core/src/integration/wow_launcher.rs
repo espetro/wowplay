@@ -69,20 +69,6 @@ impl WowLauncher {
         let wow_exe = Self::find_wow_exe(wow_dir)?;
         let env_vars = self.runner.build_env(&self.bottle);
 
-        eprintln!(
-            "  \x1b[34m[info]\x1b[0m rosettax87:  {}",
-            rosettax87.display()
-        );
-        eprintln!("  \x1b[34m[info]\x1b[0m wineloader2: {}", loader.display());
-        eprintln!("  \x1b[34m[info]\x1b[0m WoW:         {}", wow_exe.display());
-        eprintln!("  \x1b[34m[info]\x1b[0m bottle:      {}", self.bottle);
-        eprintln!(
-            "  \x1b[34m[info]\x1b[0m log:         {}",
-            log_path
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "(none)".into())
-        );
-
         let mut cmd = Command::new(&rosettax87);
         cmd.arg(&loader).arg(&wow_exe).current_dir(wow_dir);
         for (k, v) in env_vars {
@@ -106,8 +92,8 @@ impl WowLauncher {
             let stdout = child.stdout.take().expect("stdout piped");
             let stderr = child.stderr.take().expect("stderr piped");
 
-            let t1 = Self::tee_to_log(stdout, std::io::stdout(), Arc::clone(&log));
-            let t2 = Self::tee_to_log(stderr, std::io::stderr(), log);
+            let t1 = Self::tee_to_log(stdout, Arc::clone(&log));
+            let t2 = Self::tee_to_log(stderr, log);
             (child, vec![t1, t2])
         } else {
             let child = cmd.spawn().map_err(LaunchError::SpawnFailed)?;
@@ -282,7 +268,6 @@ impl WowLauncher {
 
     fn tee_to_log(
         reader: impl Read + Send + 'static,
-        mut terminal: impl Write + Send + 'static,
         log: Arc<Mutex<fs::File>>,
     ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
@@ -292,8 +277,6 @@ impl WowLauncher {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let _ = terminal.write_all(&buf[..n]);
-                        let _ = terminal.flush();
                         if let Ok(mut f) = log.lock() {
                             let _ = f.write_all(&buf[..n]);
                         }

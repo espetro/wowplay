@@ -11,6 +11,11 @@ For per-package changes, see the individual CHANGELOGs:
 - [`packages/integration/CHANGELOG.md`](packages/integration/CHANGELOG.md)
 - [`tools/profiler/CHANGELOG.md`](tools/profiler/CHANGELOG.md)
 
+## [0.3.1] - 2026-06-09
+
+### Changed
+- Release binary is now signed with a Developer ID certificate and notarized by Apple — no more Gatekeeper quarantine or `xattr` workarounds on other Macs
+
 ## [0.3.0] - 2026-06-09
 
 ### Added

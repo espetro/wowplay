@@ -104,7 +104,7 @@ This project uses an agent-first development workflow. See [AGENTS.md](AGENTS.md
 
 ## License
 
-MIT License - See LICENSE file for details
+Apache License 2.0 - See [LICENSE](LICENSE) for details.
 
 ## External Dependencies
 

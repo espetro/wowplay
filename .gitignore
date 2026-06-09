@@ -8,7 +8,7 @@ tmp/
 target/
 **/*.rs.bk
 *.pdb
-Cargo.lock
+packages/*/Cargo.lock
 
 # Zig
 zig-cache/

@@ -26,16 +26,20 @@ pub struct WowLauncher {
     wowsilicon_resources: PathBuf,
     bottle: String,
     use_sudo: bool,
+    enable_lib_silicon: bool,
 }
 
 impl WowLauncher {
     /// Create a launcher with the given runner and resources.
+    ///
+    /// `enable_lib_silicon` defaults to `true` — set to `false` to skip libSiliconPatch.dll deployment.
     pub fn new(runner: Arc<dyn RunnerPort>, wowsilicon_resources: PathBuf, bottle: &str) -> Self {
         Self {
             runner,
             wowsilicon_resources,
             bottle: bottle.to_string(),
             use_sudo: false,
+            enable_lib_silicon: true,
         }
     }
 
@@ -43,6 +47,15 @@ impl WowLauncher {
     /// via fork/ptrace without root. Kept for backward compatibility.
     pub fn with_sudo(mut self) -> Self {
         self.use_sudo = true;
+        self
+    }
+
+    /// Enable or disable libSiliconPatch.dll deployment.
+    ///
+    /// Defaults to `true`. Set to `false` when running on Whisky where winerosetta's VEH
+    /// handles x87 exception handling without the proprietary library.
+    pub fn with_enable_lib_silicon(mut self, enable: bool) -> Self {
+        self.enable_lib_silicon = enable;
         self
     }
 
@@ -59,7 +72,7 @@ impl WowLauncher {
             )));
         }
 
-        Self::apply_game_patch(wow_dir, &self.wowsilicon_resources)?;
+        Self::apply_game_patch(wow_dir, &self.wowsilicon_resources, self.enable_lib_silicon)?;
         let loader = self.runner.prepare_loader()?;
 
         let rosettax87 = wow_dir.join("rosettax87/rosettax87");
@@ -104,7 +117,15 @@ impl WowLauncher {
     }
 
     /// Applies the WoW game patch: copies DLLs, rosettax87 binaries, updates dlls.txt.
-    pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchError> {
+    ///
+    /// `enable_lib_silicon` controls whether `libSiliconPatch.dll` is copied and registered in dlls.txt.
+    /// When `false`, only `winerosetta.dll` is deployed — suitable for Whisky+Crossover where the VEH
+    /// handles x87 exception handling without the proprietary patch library.
+    pub fn apply_game_patch(
+        wow_dir: &Path,
+        resources: &Path,
+        enable_lib_silicon: bool,
+    ) -> Result<(), LaunchError> {
         if !wow_dir.exists() {
             return Err(LaunchError::WowDirNotFound(wow_dir.display().to_string()));
         }
@@ -128,10 +149,12 @@ impl WowLauncher {
 
         // winerosetta only in mods/; dlls.txt handles loading. No game-root copy.
         copy("winerosetta/winerosetta.dll", "mods/winerosetta.dll")?;
-        copy(
-            "libSiliconPatch/wotlk/libSiliconPatch.dll",
-            "mods/libSiliconPatch.dll",
-        )?;
+        if enable_lib_silicon {
+            copy(
+                "libSiliconPatch/wotlk/libSiliconPatch.dll",
+                "mods/libSiliconPatch.dll",
+            )?;
+        }
         copy("winerosetta/libDllLdr.dll", "libDllLdr.dll")?;
 
         // rosettax87 JIT translator — arm64 binary that hooks Rosetta 2 for x87 FPU
@@ -156,7 +179,11 @@ impl WowLauncher {
 
         Self::update_dlls_txt(
             wow_dir,
-            &["mods/winerosetta.dll", "mods/libSiliconPatch.dll"],
+            if enable_lib_silicon {
+                &["mods/winerosetta.dll", "mods/libSiliconPatch.dll"]
+            } else {
+                &["mods/winerosetta.dll"]
+            },
         )?;
 
         Ok(())

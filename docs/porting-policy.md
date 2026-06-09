@@ -7,7 +7,7 @@
 - **winerosetta** (C): Open source, actively maintained
 
 ### Closed Source (P0 for Recreation)
-- **libSiliconPatch**: Closed source, required for WoW 3.3.5a on Apple Silicon
+- **libSiliconPatch**: Closed source, optional for WoW 3.3.5a on Apple Silicon (enabled by default; can be disabled via `--disable-lib-silicon` flag)
 
 ## Porting Decision Matrix
 
@@ -41,7 +41,7 @@
 - Legal/compliance requirements
 
 **Examples:**
-- **libSiliconPatch**: Closed source, security risk, must be recreated
+- **libSiliconPatch**: Closed source, optional ( Whisky/CrossOver VEH may suffice); port if additional coverage needed
 
 ### 🤔 Port to Rust (Optional)
 **Use when:**
@@ -126,13 +126,13 @@ flowchart TD
 
 **Action:** Wrap via FFI, monitor upstream changes.
 
-### Case 2: libSiliconPatch (P0 Port)
+### Case 2: libSiliconPatch (Optional Port)
 - ❌ Closed source
-- ❌ Security risk
-- ✅ Required for functionality
+- ⚠️ Optional — Whisky/CrossOver VEH handles x87 exceptions without it
+- ✅ Works with winerosetta VEH on most setups
 - ❌ Cannot audit or extend
 
-**Action:** Recreate in Rust immediately after POC.
+**Action:** Keep as optional FFI; port to Rust only if VEH coverage proves insufficient.
 
 ### Case 3: Future Custom Optimization (Optional Port)
 - ✅ We control the code

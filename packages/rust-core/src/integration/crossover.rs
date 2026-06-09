@@ -74,8 +74,13 @@ pub fn create_wineloader2(crossover: &Path) -> Result<PathBuf, LaunchError> {
 /// Applies the WoW game patch: copies DLLs, rosettax87 binaries, updates dlls.txt.
 ///
 /// Thin wrapper around [`WowLauncher::apply_game_patch`].
-pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchError> {
-    WowLauncher::apply_game_patch(wow_dir, resources)
+/// When `enable_lib_silicon` is `false`, libSiliconPatch.dll is not copied or registered.
+pub fn apply_game_patch(
+    wow_dir: &Path,
+    resources: &Path,
+    enable_lib_silicon: bool,
+) -> Result<(), LaunchError> {
+    WowLauncher::apply_game_patch(wow_dir, resources, enable_lib_silicon)
 }
 
 /// Returns the Wine environment for a CrossOver bottle launch.

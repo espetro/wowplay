@@ -24,7 +24,7 @@ MILESTONES = [
         "name": "dll_not_found",
         "pattern": re.compile(r"err:.*import_dll.*not found|err:.*loader_init.*c0000135", re.I),
         "stage": "dll_missing",
-        "hint": "A required DLL is missing (c0000135). Check libDllLdr.dll, mods/winerosetta.dll, mods/libSiliconPatch.dll.",
+        "hint": "A required DLL is missing (c0000135). Check libDllLdr.dll, mods/winerosetta.dll. libSiliconPatch.dll is optional.",
     },
     {
         "name": "dxvk_init",

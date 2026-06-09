@@ -77,7 +77,7 @@ tools/profiler/
 
 ## Guardrails
 
-- Never disassemble or analyze `libSiliconPatch.dll`
+- Never disassemble or analyze `libSiliconPatch.dll` (it is optional and proprietary)
 - Profile `WoW.exe` only
 - Handle SIP/hardened runtime gracefully (falls back to `sample`)
 - Distinguish Wine x87 from WoW x87 via address range filtering

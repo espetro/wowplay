@@ -83,5 +83,5 @@ use_sample_fallback = false
 # Number of sample iterations for fallback mode
 sample_iterations = 300
 
-# Parse sample output for these modules
+# Parse sample output for these modules (libSiliconPatch.dll is optional)
 sample_modules = ["WoW.exe", "libSiliconPatch.dll"]

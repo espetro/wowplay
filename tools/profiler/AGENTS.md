@@ -67,7 +67,7 @@ python3 analyze.py --trace x87_trace_*.log --samples cpu_sample_*.log
 - CPU hotspot identification
 
 ### DO NOT: Disassemble or decompile
-- libSiliconPatch.dll is proprietary
+- libSiliconPatch.dll is proprietary but optional (disabled via `--disable-lib-silicon`)
 - Tracing is permitted; reverse engineering is not
 - Hook only public entry points
 
@@ -81,7 +81,7 @@ python3 analyze.py --trace x87_trace_*.log --samples cpu_sample_*.log
 ### trace_x87.py
 - Instruments x87 FPU instruction execution
 - Logs: opcode, operands, timestamps, register state
-- Frida hooks into `libSiliconPatch!execute_x87_instruction` (inferred)
+- Frida hooks into `libSiliconPatch!execute_x87_instruction` (inferred; libSiliconPatch is optional)
 - Output: `data/profiler/x87_trace_*.log`
 
 ### sample_cpu.py

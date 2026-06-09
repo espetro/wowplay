@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
+use wow_silicon_core::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
 use wow_silicon_core::integration::crossover::{
     apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
     is_rosetta_service_running, wineloader2_path, wowsilicon_resources,
 };
-use wow_silicon_core::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
 use wow_silicon_core::integration::wow_launcher::WowLauncher;
 use wow_silicon_core::runner_registry::RunnerRegistry;
 
@@ -20,33 +20,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-        /// Launch WoW via rosettax87 + CrossOver (applies patches automatically on first launch)
-        Run {
-            /// Path to WoW 3.3.5a game directory
-            #[arg(long)]
-            wow_dir: Option<PathBuf>,
-            /// Runner to use (default: crossover)
-            #[arg(long, default_value = "crossover")]
-            runner: String,
-            /// CrossOver bottle name (default: Win10)
-            #[arg(long, default_value = "Win10")]
-            bottle: String,
-            /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
-            #[arg(long)]
-            patching_dir: Option<PathBuf>,
-            /// Deprecated: sudo is no longer required. Kept for backward compatibility.
-            #[arg(long)]
-            sudo: bool,
-            /// Print diagnostics then exit without launching
-            #[arg(long)]
-            diagnose: bool,
-            /// Skip log file creation; raw stderr only
-            #[arg(long)]
-            no_log: bool,
-            /// Explicit path to Whisky.app (only used when --runner whisky)
-            #[arg(long)]
-            whisky_bundle: Option<PathBuf>,
-        },
+    /// Launch WoW via rosettax87 + CrossOver (applies patches automatically on first launch)
+    Run {
+        /// Path to WoW 3.3.5a game directory
+        #[arg(long)]
+        wow_dir: Option<PathBuf>,
+        /// Runner to use (default: crossover)
+        #[arg(long, default_value = "crossover")]
+        runner: String,
+        /// CrossOver bottle name (default: Win10)
+        #[arg(long, default_value = "Win10")]
+        bottle: String,
+        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+        #[arg(long)]
+        patching_dir: Option<PathBuf>,
+        /// Deprecated: sudo is no longer required. Kept for backward compatibility.
+        #[arg(long)]
+        sudo: bool,
+        /// Print diagnostics then exit without launching
+        #[arg(long)]
+        diagnose: bool,
+        /// Skip log file creation; raw stderr only
+        #[arg(long)]
+        no_log: bool,
+        /// Explicit path to Whisky.app (only used when --runner whisky)
+        #[arg(long)]
+        whisky_bundle: Option<PathBuf>,
+        /// Disable libSiliconPatch.dll (enabled by default; may improve compatibility on some setups)
+        #[arg(long)]
+        disable_lib_silicon: bool,
+    },
     /// One-time setup: stage DLLs and create wineloader2
     Setup {
         /// Path to WoW 3.3.5a game directory
@@ -56,6 +59,9 @@ enum Cmd {
         /// Use vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching from the repo.
         #[arg(long)]
         patching_dir: Option<PathBuf>,
+        /// Disable libSiliconPatch.dll (enabled by default)
+        #[arg(long)]
+        disable_lib_silicon: bool,
     },
     /// Print environment checklist and exit
     Diagnose {
@@ -296,6 +302,7 @@ fn main() {
         Cmd::Setup {
             wow_dir,
             patching_dir,
+            disable_lib_silicon,
         } => {
             // Stage bundled resources to ~/.local/share/wowplay/patching
             if let Ok(exe) = std::env::current_exe() {
@@ -307,7 +314,10 @@ fn main() {
                         info("Staging patching resources…");
                         copy_dir_recursive(&bundled, &staged)
                             .unwrap_or_else(|e| die(&format!("staging failed: {e}")));
-                        ok(&format!("patching resources staged to {}", staged.display()));
+                        ok(&format!(
+                            "patching resources staged to {}",
+                            staged.display()
+                        ));
                     }
                 }
             }
@@ -328,7 +338,8 @@ fn main() {
             info("Applying game patch…");
             let resources =
                 resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            apply_game_patch(&wow_dir, &resources).unwrap_or_else(|e| die(&e.to_string()));
+            apply_game_patch(&wow_dir, &resources, !disable_lib_silicon)
+                .unwrap_or_else(|e| die(&e.to_string()));
             ok("game patch applied");
         }
 
@@ -341,6 +352,7 @@ fn main() {
             diagnose,
             no_log,
             whisky_bundle,
+            disable_lib_silicon,
         } => {
             if diagnose {
                 run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
@@ -362,6 +374,9 @@ fn main() {
             let mut launcher = WowLauncher::new(runner, resources, &bottle);
             if sudo {
                 launcher = launcher.with_sudo();
+            }
+            if disable_lib_silicon {
+                launcher = launcher.with_enable_lib_silicon(false);
             }
 
             let wow_dir = wow_dir.unwrap_or_else(|| {

@@ -144,7 +144,7 @@ CrossOver's `wineloader` (x86_64 on CrossOver 24) is code-signed with hardened r
 `winerosetta.dll` cannot load itself — it must be brought in by Wine's native DLL loader. The client's existing `DivxDecoder.dll` is the injection anchor:
 1. `libDllLdr.dll,PatchDivxDecoder` rewrites `DivxDecoder.dll` in-place (backed up to `.bak`) to import `mods/winerosetta.dll`.
 2. When WoW.exe starts, Wine loads DivxDecoder.dll as usual, which now pulls in winerosetta.
-3. winerosetta installs its vectored exception handler (VEH) and reads `dlls.txt` to load `mods/libSiliconPatch.dll`.
+3. winerosetta installs its vectored exception handler (VEH) and optionally reads `dlls.txt` to load `mods/libSiliconPatch.dll` (disabled via `--disable-lib-silicon`).
 4. The VEH hot-patches illegal x87 opcodes (`fcomp st`, `arpl`) that rosettax87's JIT alone cannot handle.
 
 This is the recipe used by WoWSilicon (applyGamePatch + patchDivxDecoder) for CrossOver 24.
@@ -186,7 +186,7 @@ fn test_wow_launches_and_runs() {
 - Verify gameplay
 
 ### Phase 3: Progressive Enhancement
-- Recreate libSiliconPatch in Rust
+- Recreate libSiliconPatch in Rust (optional — VEH may suffice on Whisky/CrossOver)
 - Add new features via ports/adapters
 - Improve test coverage
 
@@ -199,7 +199,7 @@ the others are not yet open-sourced or vendored. Full inventory with replacement
 | File | Source | Status |
 |---|---|---|
 | `winerosetta.dll` | Built by zig-glue from vendored C++ | Open-source (Gcenx/winerosetta) |
-| `mods/libSiliconPatch.dll` (WotLK) | WoWSilicon.app bundle | Closed-source — **P0** to replace |
+| `mods/libSiliconPatch.dll` (WotLK) | WoWSilicon.app bundle | Closed-source — **optional** (enabled by default; disable via `--disable-lib-silicon`) |
 | `d3d9.dll` | WoWSilicon.app bundle (D9VK) | Open-source — candidate to vendor |
 | `libDllLdr.dll` | WoWSilicon.app bundle | Source unknown — investigate |
 | `rosettax87` + `libRuntimeRosettax87` | WoWSilicon.app bundle | Open-source — candidates to vendor |

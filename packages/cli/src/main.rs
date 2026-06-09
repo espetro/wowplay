@@ -7,7 +7,7 @@ use wow_silicon_core::integration::crossover::{
     apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
     is_rosetta_service_running, wineloader2_path, wowsilicon_resources,
 };
-use wow_silicon_core::adapters::whisky_adapter::WhiskyAdapter;
+use wow_silicon_core::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
 use wow_silicon_core::integration::wow_launcher::WowLauncher;
 use wow_silicon_core::runner_registry::RunnerRegistry;
 
@@ -86,11 +86,64 @@ fn die(msg: &str) -> ! {
 }
 
 fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
-    match explicit {
-        Some(p) => Ok(p),
-        None => find_wowsilicon()
-            .map(|app| wowsilicon_resources(&app))
-            .map_err(|e| e.to_string()),
+    if let Some(p) = explicit {
+        return Ok(p);
+    }
+
+    // 1. Previously staged by wowplay setup
+    let installed = PathBuf::from(std::env::var("HOME").unwrap_or_default())
+        .join(".local/share/wowplay/patching");
+    if installed.exists() {
+        return Ok(installed);
+    }
+
+    // 2. Bundled next to the binary (release zip layout)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let bundled = dir.join("patching");
+            if bundled.exists() {
+                return Ok(bundled);
+            }
+        }
+    }
+
+    // 3. WoWSilicon.app (legacy / developer path)
+    if let Ok(app) = find_wowsilicon() {
+        return Ok(wowsilicon_resources(&app));
+    }
+
+    Err("patching resources not found — download the release zip and run wowplay setup".into())
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    fs::create_dir_all(dst).map_err(|e| format!("mkdir {}: {e}", dst.display()))?;
+    for entry in fs::read_dir(src).map_err(|e| format!("read_dir {}: {e}", src.display()))? {
+        let entry = entry.map_err(|e| format!("dir entry: {e}"))?;
+        let ty = entry.file_type().map_err(|e| format!("file type: {e}"))?;
+        let dst_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&entry.path(), &dst_path)?;
+        } else {
+            fs::copy(entry.path(), &dst_path)
+                .map_err(|e| format!("copy {}: {e}", entry.path().display()))?;
+        }
+    }
+    Ok(())
+}
+
+fn print_runner_table() {
+    info("Checking available runners…");
+    match find_crossover() {
+        Ok(p) => ok(&format!("CrossOver  ✅  {}", p.display())),
+        Err(_) => warn("CrossOver  ❌  not found → https://www.codeweavers.com/crossover"),
+    }
+    match WhiskyAdapter::find_bundle() {
+        Ok(p) => ok(&format!("Whisky     ✅  {}", p.display())),
+        Err(_) => warn("Whisky     ❌  not found → https://github.com/Whisky-App/Whisky"),
+    }
+    match find_moonshine() {
+        Ok(p) => ok(&format!("Moonshine  ✅  {}", p.display())),
+        Err(_) => warn("Moonshine  ❌  not found → https://github.com/ybmeng/moonshine"),
     }
 }
 
@@ -244,19 +297,37 @@ fn main() {
             wow_dir,
             patching_dir,
         } => {
+            // Stage bundled resources to ~/.local/share/wowplay/patching
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let bundled = dir.join("patching");
+                    let staged = PathBuf::from(std::env::var("HOME").unwrap_or_default())
+                        .join(".local/share/wowplay/patching");
+                    if bundled.exists() && !staged.exists() {
+                        info("Staging patching resources…");
+                        copy_dir_recursive(&bundled, &staged)
+                            .unwrap_or_else(|e| die(&format!("staging failed: {e}")));
+                        ok(&format!("patching resources staged to {}", staged.display()));
+                    }
+                }
+            }
+
+            print_runner_table();
+
             info("Setting up wineloader2…");
-            let crossover = find_crossover().unwrap_or_else(|e| die(&e.to_string()));
-            create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
-            ok("wineloader2 staged");
+            match find_crossover() {
+                Ok(crossover) => {
+                    create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
+                    ok("wineloader2 staged");
+                }
+                Err(e) => {
+                    warn(&format!("wineloader2 skipped (CrossOver not found: {e})"));
+                }
+            }
 
             info("Applying game patch…");
-            let resources = match patching_dir {
-                Some(p) => p,
-                None => {
-                    let wowsilicon = find_wowsilicon().unwrap_or_else(|e| die(&e.to_string()));
-                    wowsilicon_resources(&wowsilicon)
-                }
-            };
+            let resources =
+                resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
             apply_game_patch(&wow_dir, &resources).unwrap_or_else(|e| die(&e.to_string()));
             ok("game patch applied");
         }

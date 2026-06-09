@@ -3,9 +3,7 @@
 #
 # Produces:
 #   dist/wowplay                  — signed ARM64 CLI binary
-#   dist/winerosetta.dll          — built by zig-glue
-#   dist/winerosetta.pdb          — debug symbols
-#   dist/install.sh               — copies binary to ~/.local/bin
+#   dist/patching/                — patching resources from vendor/wowsilicon (winerosetta.dll overridden by zig-glue)
 #   dist/wowplay-VERSION.zip      — archive for GitHub releases
 #
 # Local install (default):
@@ -77,21 +75,14 @@ ZIG_OUT="${REPO_ROOT}/packages/zig-glue/zig-out"
 echo ""
 echo "==> Staging dist/…"
 rm -rf "${DIST_DIR}"
-mkdir -p "${DIST_DIR}"
+mkdir -p "${DIST_DIR}/patching"
 
 cp "${CLI_BIN}" "${DIST_DIR}/${BIN_NAME}"
-cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/winerosetta.dll"
-[[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/winerosetta.pdb"
 
-cat > "${DIST_DIR}/install.sh" << 'INSTALL'
-#!/usr/bin/env bash
-set -euo pipefail
-mkdir -p "${HOME}/.local/bin"
-cp "$(dirname "$0")/wowplay" "${HOME}/.local/bin/wowplay"
-chmod +x "${HOME}/.local/bin/wowplay"
-echo "Installed wowplay to ~/.local/bin/wowplay"
-INSTALL
-chmod +x "${DIST_DIR}/install.sh"
+PATCHING_SRC="${REPO_ROOT}/vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching"
+cp -R "${PATCHING_SRC}/." "${DIST_DIR}/patching/"
+cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/patching/winerosetta/winerosetta.dll"
+[[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/patching/winerosetta/winerosetta.pdb"
 
 # ── Sign CLI binary ──────────────────────────────────────────────────────────
 
@@ -117,10 +108,10 @@ fi
 
 # ── Package ──────────────────────────────────────────────────────────────────
 
-ZIP_PATH="${DIST_DIR}/${BIN_NAME}-${VERSION}.zip"
+ZIP_PATH="${REPO_ROOT}/${BIN_NAME}-${VERSION}.zip"
 echo ""
 echo "==> Packaging ${ZIP_PATH}…"
-ditto -c -k "${DIST_DIR}" "${ZIP_PATH}"
+(cd "${DIST_DIR}" && zip -r "${ZIP_PATH}" .)
 
 # ── Notarization + stapling ──────────────────────────────────────────────────
 
@@ -135,8 +126,9 @@ fi
 
 echo ""
 echo "Done. wowplay v${VERSION} is ready:"
-echo "  Binary : ${DIST_DIR}/${BIN_NAME}"
-echo "  Archive: ${ZIP_PATH}"
+echo "  Binary  : ${DIST_DIR}/${BIN_NAME}"
+echo "  Patching: ${DIST_DIR}/patching/"
+echo "  Archive : ${ZIP_PATH}"
 [[ "${SKIP_INSTALL}" != "true" ]] && echo "  Installed: ~/.local/bin/${BIN_NAME}"
 echo ""
 echo "Upload ${ZIP_PATH} to the GitHub v${VERSION} release."

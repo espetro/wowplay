@@ -7,11 +7,9 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true || github.event_name == 'push'
     runs-on: macos-latest
 
     steps:
@@ -21,24 +19,12 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
-        with:
-          targets: aarch64-apple-darwin
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install release-plz
         run: cargo install --locked release-plz
 
-      - name: Run release-plz
-        run: |
-          release-plz release --no-publish
-
-      - name: Create GitHub Release
-        if: steps.release-plz.outputs.published == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release-plz.outputs.tag_name }}
-          name: Release ${{ steps.release-plz.outputs.tag_name }}
-          generate_release_notes: true
-          draft: false
+      - name: Release
+        run: release-plz release --no-publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

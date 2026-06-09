@@ -123,8 +123,30 @@ fn make_log_path() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
     let log_dir = PathBuf::from(home).join(".local/share/wowplay/logs");
     fs::create_dir_all(&log_dir).map_err(|e| format!("mkdir logs: {e}"))?;
+    prune_old_logs(&log_dir);
     let ts = timestamp_now();
     Ok(log_dir.join(format!("{ts}.log")))
+}
+
+fn prune_old_logs(log_dir: &std::path::Path) {
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(7 * 24 * 60 * 60))
+        .unwrap_or(std::time::UNIX_EPOCH);
+    let Ok(entries) = fs::read_dir(log_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("log") {
+            continue;
+        }
+        let Ok(meta) = fs::metadata(&path) else {
+            continue;
+        };
+        if meta.modified().map(|t| t < cutoff).unwrap_or(false) {
+            let _ = fs::remove_file(&path);
+        }
+    }
 }
 
 fn timestamp_now() -> String {

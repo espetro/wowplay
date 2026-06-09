@@ -20,7 +20,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-        /// Launch WoW via rosettax87 + CrossOver
+        /// Launch WoW via rosettax87 + CrossOver (applies patches automatically on first launch)
         Run {
             /// Path to WoW 3.3.5a game directory
             #[arg(long)]

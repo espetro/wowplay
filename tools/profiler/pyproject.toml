@@ -1,6 +1,6 @@
 [project]
 name = "wow-silicon-profiler"
-version = "0.1.0"
+version = "0.2.0"
 description = "Profiling harness for WoW 3.3.5a on Apple Silicon"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -25,6 +25,12 @@ enum Cmd {
         /// CrossOver bottle name (default: Win10)
         #[arg(long, default_value = "Win10")]
         bottle: String,
+        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+        #[arg(long)]
+        patching_dir: Option<PathBuf>,
+        /// Skip sudo for rosettax87 — manage the service manually
+        #[arg(long)]
+        no_sudo: bool,
         /// Print diagnostics then exit without launching
         #[arg(long)]
         diagnose: bool,
@@ -47,6 +53,9 @@ enum Cmd {
         /// WoW directory for DivxDecoder and wineloader2 checks
         #[arg(long)]
         wow_dir: Option<PathBuf>,
+        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+        #[arg(long)]
+        patching_dir: Option<PathBuf>,
     },
 }
 
@@ -67,7 +76,16 @@ fn die(msg: &str) -> ! {
     process::exit(1);
 }
 
-fn run_diagnose(wow_dir: Option<&PathBuf>) {
+fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
+    match explicit {
+        Some(p) => Ok(p),
+        None => find_wowsilicon()
+            .map(|app| wowsilicon_resources(&app))
+            .map_err(|e| e.to_string()),
+    }
+}
+
+fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
     info("Checking CrossOver…");
     let cx_opt = match find_crossover() {
         Ok(p) => {
@@ -80,18 +98,18 @@ fn run_diagnose(wow_dir: Option<&PathBuf>) {
         }
     };
 
-    info("Checking WoWSilicon…");
-    match find_wowsilicon() {
-        Ok(p) => {
-            ok(&format!("WoWSilicon: {}", p.display()));
-            let res = wowsilicon_resources(&p);
+    info("Checking patching resources…");
+    match resolve_patching_dir(patching_dir.cloned()) {
+        Ok(res) => {
             if res.exists() {
-                ok(&format!("WoWSilicon resources: {}", res.display()));
+                ok(&format!("Patching dir: {}", res.display()));
             } else {
-                warn(&format!("resources dir missing: {}", res.display()));
+                warn(&format!("Patching dir not found: {}", res.display()));
             }
         }
-        Err(e) => warn(&format!("WoWSilicon: {e}")),
+        Err(e) => warn(&format!(
+            "Patching dir: {e} — pass --patching-dir or install WoWSilicon.app"
+        )),
     }
 
     info("Checking rosettax87 service…");
@@ -186,8 +204,8 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Cmd::Diagnose { wow_dir } => {
-            run_diagnose(wow_dir.as_ref());
+        Cmd::Diagnose { wow_dir, patching_dir } => {
+            run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
         }
 
         Cmd::Setup { wow_dir, patching_dir } => {
@@ -211,16 +229,23 @@ fn main() {
         Cmd::Run {
             wow_dir,
             bottle,
+            patching_dir,
+            no_sudo,
             diagnose,
             no_log,
         } => {
             if diagnose {
-                run_diagnose(wow_dir.as_ref());
+                run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
                 return;
             }
 
-            let launcher =
-                CrossoverLauncher::with_bottle(&bottle).unwrap_or_else(|e| die(&e.to_string()));
+            let resources =
+                resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
+            let mut launcher = CrossoverLauncher::from_patching_dir(&bottle, resources)
+                .unwrap_or_else(|e| die(&e.to_string()));
+            if no_sudo {
+                launcher = launcher.no_sudo();
+            }
 
             let wow_dir = wow_dir.unwrap_or_else(|| {
                 die("--wow-dir is required; e.g. wowplay run --wow-dir ~/WoW");

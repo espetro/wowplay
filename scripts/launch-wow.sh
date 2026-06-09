@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# DEPRECATED: superseded by `wowplay run`. Kept as a debugging reference.
+# New contributors: use `wowplay setup` + `wowplay run` instead.
 # Launch WoW 3.3.5a on Apple Silicon via CrossOver + rosettax87.
 #
 # Usage:

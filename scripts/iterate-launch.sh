@@ -13,7 +13,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TIMEOUT="${TIMEOUT:-60}"
 
 echo "→ Starting timed launch (${TIMEOUT}s timeout)..."
-timeout "$TIMEOUT" "$REPO_ROOT/scripts/launch-wow.sh" || true
+timeout "$TIMEOUT" wowplay run --wow-dir "${WOW_DIR:-$HOME/Documents/ChromieCraft_3.3.5a}" || true
 
 echo "→ Launch ended. Classifying log..."
-python3 "$REPO_ROOT/tools/launch-diagnostics/classify.py"
+LATEST_LOG=$(ls -t "$HOME/.local/share/wowplay/logs/"*.log 2>/dev/null | head -1)
+python3 "$REPO_ROOT/tools/launch-diagnostics/classify.py" "${LATEST_LOG:-}"

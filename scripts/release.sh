@@ -80,8 +80,8 @@ rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 
 cp "${CLI_BIN}" "${DIST_DIR}/${BIN_NAME}"
-cp "${ZIG_OUT}/lib/winerosetta.dll" "${DIST_DIR}/winerosetta.dll"
-[[ -f "${ZIG_OUT}/lib/winerosetta.pdb" ]] && cp "${ZIG_OUT}/lib/winerosetta.pdb" "${DIST_DIR}/winerosetta.pdb"
+cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/winerosetta.dll"
+[[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/winerosetta.pdb"
 
 cat > "${DIST_DIR}/install.sh" << 'INSTALL'
 #!/usr/bin/env bash

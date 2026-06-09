@@ -6,7 +6,7 @@
 
 ## Download
 
-[![Latest Release](https://img.shields.io/github/v/release/yourusername/play-wow-on-silicon?style=flat&label=latest)](https://github.com/yourusername/play-wow-on-silicon/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/espetro/play-wow-on-silicon?style=flat&label=latest)](https://github.com/yourusername/play-wow-on-silicon/releases/latest)
 
 **macOS only** · Requires [CrossOver](https://www.codeweavers.com/crossover) 23+ (external runtime, not included)
 

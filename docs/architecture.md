@@ -190,6 +190,38 @@ fn test_wow_launches_and_runs() {
 - Add new features via ports/adapters
 - Improve test coverage
 
+## External Runtime Dependencies
+
+The binaries listed below are copied from an installed WoWSilicon.app at launch time
+(`wowplay setup` / `apply_game_patch`). We build `winerosetta.dll` ourselves via zig-glue;
+the others are not yet open-sourced or vendored. Full inventory with replacement roadmap: [`assets/external/README.md`](../assets/external/README.md).
+
+| File | Source | Status |
+|---|---|---|
+| `winerosetta.dll` | Built by zig-glue from vendored C++ | Open-source (Gcenx/winerosetta) |
+| `mods/libSiliconPatch.dll` (WotLK) | WoWSilicon.app bundle | Closed-source — **P0** to replace |
+| `d3d9.dll` | WoWSilicon.app bundle (D9VK) | Open-source — candidate to vendor |
+| `libDllLdr.dll` | WoWSilicon.app bundle | Source unknown — investigate |
+| `rosettax87` + `libRuntimeRosettax87` | WoWSilicon.app bundle | Open-source — candidates to vendor |
+
+## WoW-specific vs General
+
+The architecture is layered so the general machinery can be reused for other Windows games:
+
+| Layer | General | WoW-specific |
+|---|---|---|
+| Ports & Adapters pattern | ✅ | — |
+| FFI wrapping / adapter pattern | ✅ | — |
+| MRE test harness | ✅ | — |
+| Profiling pipeline | ✅ mostly | Change trace targets |
+| x87 VEH / ARPL emulation | — | ✅ WoW-only |
+| DLL injection bootstrap (DivxDecoder) | — | ✅ WoW-only |
+| libSiliconPatch recreation | — | ✅ WoW-only |
+
+The three WoW-only blocks depend on game-specific binary layout and opcode quirks.
+The three general blocks (`ports/adapters`, `FFI`, `MRE harness`) have no WoW coupling
+and can be extracted to a shared crate if a second game target is added.
+
 ## See Also
 - [Porting Policy](porting-policy.md)
 - [Testing Strategy](testing-strategy.md)

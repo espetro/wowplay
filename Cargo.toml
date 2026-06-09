@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "packages/rust-core",
+  "packages/cli",
+  "packages/integration",
+]
+resolver = "2"

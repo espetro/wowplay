@@ -1,0 +1,13 @@
+[package]
+name = "wowplay"
+version = "0.1.0"
+edition = "2021"
+authors = ["Joaquin Terrasa"]
+
+[[bin]]
+name = "wowplay"
+path = "src/main.rs"
+
+[dependencies]
+wow-silicon-core = { path = "../rust-core" }
+clap = { version = "4", features = ["derive", "color"] }

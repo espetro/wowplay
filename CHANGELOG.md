@@ -11,10 +11,15 @@ For per-package changes, see the individual CHANGELOGs:
 - [`packages/integration/CHANGELOG.md`](packages/integration/CHANGELOG.md)
 - [`tools/profiler/CHANGELOG.md`](tools/profiler/CHANGELOG.md)
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-06-09
 
 ### Added
 - Workspace-wide synchronized versioning using `release-plz`
 - Automated release workflow via GitHub Actions
 - Per-package CHANGELOGs for all components
+- `CrossOverAdapter` and `WowLauncher` core modules for CrossOver integration
+- Apache-2.0 license
+
+### Changed
+- `wowplay run --no-sudo` replaced by `--sudo` (sudo is no longer required by default)
 

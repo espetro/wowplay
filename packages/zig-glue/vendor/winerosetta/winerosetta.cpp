@@ -64,7 +64,14 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         if (GetModuleFileName(module, module_path, MAX_PATH)) {
             LoadLibrary(module_path);
         }
-        AddVectoredExceptionHandler(1, VectoredHandler1);
+        PVOID handler = AddVectoredExceptionHandler(1, VectoredHandler1);
+        char buf[256];
+        if (handler) {
+            sprintf(buf, "[winerosetta] VEH handler installed at %p", handler);
+        } else {
+            sprintf(buf, "[winerosetta] FAILED to install VEH handler");
+        }
+        OutputDebugStringA(buf);
     }
     return TRUE;
 }

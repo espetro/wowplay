@@ -10,4 +10,4 @@ resolver = "2"
 version = "0.2.0"
 edition = "2021"
 authors = ["Joaquin Terrasa"]
-license = "MIT"
+license = "Apache-2.0"

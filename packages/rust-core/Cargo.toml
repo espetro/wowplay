@@ -1,8 +1,9 @@
 [package]
 name = "wow-silicon-core"
-version = "0.1.0"
-edition = "2021"
-authors = ["Joaquin Terrasa"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
 libloading = "0.8"

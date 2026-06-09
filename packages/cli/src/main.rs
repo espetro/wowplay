@@ -20,30 +20,33 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Launch WoW via rosettax87 + CrossOver
-    Run {
-        /// Path to WoW 3.3.5a game directory
-        #[arg(long)]
-        wow_dir: Option<PathBuf>,
-        /// Runner to use (default: crossover)
-        #[arg(long, default_value = "crossover")]
-        runner: String,
-        /// CrossOver bottle name (default: Win10)
-        #[arg(long, default_value = "Win10")]
-        bottle: String,
-        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
-        #[arg(long)]
-        patching_dir: Option<PathBuf>,
-        /// Deprecated: sudo is no longer required. Kept for backward compatibility.
-        #[arg(long)]
-        sudo: bool,
-        /// Print diagnostics then exit without launching
-        #[arg(long)]
-        diagnose: bool,
-        /// Skip log file creation; raw stderr only
-        #[arg(long)]
-        no_log: bool,
-    },
+        /// Launch WoW via rosettax87 + CrossOver
+        Run {
+            /// Path to WoW 3.3.5a game directory
+            #[arg(long)]
+            wow_dir: Option<PathBuf>,
+            /// Runner to use (default: crossover)
+            #[arg(long, default_value = "crossover")]
+            runner: String,
+            /// CrossOver bottle name (default: Win10)
+            #[arg(long, default_value = "Win10")]
+            bottle: String,
+            /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+            #[arg(long)]
+            patching_dir: Option<PathBuf>,
+            /// Deprecated: sudo is no longer required. Kept for backward compatibility.
+            #[arg(long)]
+            sudo: bool,
+            /// Print diagnostics then exit without launching
+            #[arg(long)]
+            diagnose: bool,
+            /// Skip log file creation; raw stderr only
+            #[arg(long)]
+            no_log: bool,
+            /// Explicit path to Whisky.app (only used when --runner whisky)
+            #[arg(long)]
+            whisky_bundle: Option<PathBuf>,
+        },
     /// One-time setup: stage DLLs and create wineloader2
     Setup {
         /// Path to WoW 3.3.5a game directory
@@ -266,6 +269,7 @@ fn main() {
             sudo,
             diagnose,
             no_log,
+            whisky_bundle,
         } => {
             if diagnose {
                 run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
@@ -274,7 +278,16 @@ fn main() {
 
             let resources =
                 resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            let runner = RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()));
+            let runner: std::sync::Arc<dyn wow_silicon_core::ports::runner::RunnerPort> =
+                if runner == "whisky" {
+                    if let Some(bundle) = whisky_bundle {
+                        std::sync::Arc::new(WhiskyAdapter::new(bundle))
+                    } else {
+                        RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
+                    }
+                } else {
+                    RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
+                };
             let mut launcher = WowLauncher::new(runner, resources, &bottle);
             if sudo {
                 launcher = launcher.with_sudo();

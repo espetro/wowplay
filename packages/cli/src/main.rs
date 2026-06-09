@@ -28,9 +28,9 @@ enum Cmd {
         /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
         #[arg(long)]
         patching_dir: Option<PathBuf>,
-        /// Skip sudo for rosettax87 — manage the service manually
+        /// Deprecated: sudo is no longer required. Kept for backward compatibility.
         #[arg(long)]
-        no_sudo: bool,
+        sudo: bool,
         /// Print diagnostics then exit without launching
         #[arg(long)]
         diagnose: bool,
@@ -204,11 +204,17 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Cmd::Diagnose { wow_dir, patching_dir } => {
+        Cmd::Diagnose {
+            wow_dir,
+            patching_dir,
+        } => {
             run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
         }
 
-        Cmd::Setup { wow_dir, patching_dir } => {
+        Cmd::Setup {
+            wow_dir,
+            patching_dir,
+        } => {
             info("Setting up wineloader2…");
             let crossover = find_crossover().unwrap_or_else(|e| die(&e.to_string()));
             create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
@@ -230,7 +236,7 @@ fn main() {
             wow_dir,
             bottle,
             patching_dir,
-            no_sudo,
+            sudo,
             diagnose,
             no_log,
         } => {
@@ -243,8 +249,8 @@ fn main() {
                 resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
             let mut launcher = CrossoverLauncher::from_patching_dir(&bottle, resources)
                 .unwrap_or_else(|e| die(&e.to_string()));
-            if no_sudo {
-                launcher = launcher.no_sudo();
+            if sudo {
+                launcher = launcher.with_sudo();
             }
 
             let wow_dir = wow_dir.unwrap_or_else(|| {

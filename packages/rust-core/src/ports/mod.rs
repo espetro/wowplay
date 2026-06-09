@@ -2,5 +2,6 @@
 
 pub mod launcher;
 pub mod rosetta;
+pub mod runner;
 pub mod silicon_patch;
 pub mod wine;

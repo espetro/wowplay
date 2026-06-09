@@ -5,8 +5,10 @@ use std::process;
 use clap::{Parser, Subcommand};
 use wow_silicon_core::integration::crossover::{
     apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
-    is_rosetta_service_running, wineloader2_path, wowsilicon_resources, CrossoverLauncher,
+    is_rosetta_service_running, wineloader2_path, wowsilicon_resources,
 };
+use wow_silicon_core::integration::wow_launcher::WowLauncher;
+use wow_silicon_core::runner_registry::RunnerRegistry;
 
 #[derive(Parser)]
 #[command(name = "wowplay", about = "Run WoW 3.3.5a on Apple Silicon")]
@@ -22,6 +24,9 @@ enum Cmd {
         /// Path to WoW 3.3.5a game directory
         #[arg(long)]
         wow_dir: Option<PathBuf>,
+        /// Runner to use (default: crossover)
+        #[arg(long, default_value = "crossover")]
+        runner: String,
         /// CrossOver bottle name (default: Win10)
         #[arg(long, default_value = "Win10")]
         bottle: String,
@@ -139,6 +144,16 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
             warn("DivxDecoder.dll not found — reinstall WoW client if launch fails");
         }
     }
+
+    info("Available runners:");
+    for r in RunnerRegistry::available_runners() {
+        let status = if RunnerRegistry::resolve(r).is_ok() {
+            "available"
+        } else {
+            "not found"
+        };
+        info(&format!("  {r}: {status}"));
+    }
 }
 
 fn make_log_path() -> Result<PathBuf, String> {
@@ -234,6 +249,7 @@ fn main() {
 
         Cmd::Run {
             wow_dir,
+            runner,
             bottle,
             patching_dir,
             sudo,
@@ -247,8 +263,8 @@ fn main() {
 
             let resources =
                 resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            let mut launcher = CrossoverLauncher::from_patching_dir(&bottle, resources)
-                .unwrap_or_else(|e| die(&e.to_string()));
+            let runner = RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()));
+            let mut launcher = WowLauncher::new(runner, resources, &bottle);
             if sudo {
                 launcher = launcher.with_sudo();
             }

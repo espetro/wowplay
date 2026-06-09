@@ -1,16 +1,9 @@
 [workspace]
-# All packages release together with synchronized versions
-# Tag format: v0.2.0
+# All packages release together under a single workspace tag: v0.2.0
 tag_prefix = "v"
 tag_name = "v{{version}}"
 # Maintain root-level CHANGELOG with workspace-wide changes
 changelog_path = "./CHANGELOG.md"
-
-[workspace.package]
-# release-plz derives next version from conventional commits
-# and cargo-semver-checks for API breaking change detection
-semver_check = true
-
-[publish]
-# No packages are published to crates.io
+# No crates.io publishing — internal tools only
 publish = false
+semver_check = true

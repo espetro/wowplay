@@ -25,6 +25,6 @@ jobs:
         run: cargo install --locked release-plz
 
       - name: Release
-        run: release-plz release --no-publish
+        run: release-plz release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

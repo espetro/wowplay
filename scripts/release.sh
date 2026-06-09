@@ -80,8 +80,8 @@ rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 
 cp "${CLI_BIN}" "${DIST_DIR}/${BIN_NAME}"
-cp "${ZIG_OUT}/lib/winerosetta.dll" "${DIST_DIR}/winerosetta.dll"
-[[ -f "${ZIG_OUT}/lib/winerosetta.pdb" ]] && cp "${ZIG_OUT}/lib/winerosetta.pdb" "${DIST_DIR}/winerosetta.pdb"
+cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/winerosetta.dll"
+[[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/winerosetta.pdb"
 
 cat > "${DIST_DIR}/install.sh" << 'INSTALL'
 #!/usr/bin/env bash
@@ -129,12 +129,8 @@ if [[ "${SKIP_NOTARIZE}" != "true" ]]; then
   echo "==> Notarizing…"
   xcrun notarytool submit "${ZIP_PATH}" "${NOTARY_AUTH[@]}" --wait
 
-  echo "==> Stapling…"
-  xcrun stapler staple "${DIST_DIR}/${BIN_NAME}"
-
-  echo "==> Re-packaging with stapled binary…"
-  rm -f "${ZIP_PATH}"
-  ditto -c -k "${DIST_DIR}" "${ZIP_PATH}"
+  # Flat binaries cannot be stapled (only .app bundles, .dmg, .pkg support
+  # stapling). The notarization ticket is verified online by Gatekeeper.
 fi
 
 echo ""

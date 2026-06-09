@@ -3,9 +3,17 @@ use std::path::PathBuf;
 use wow_silicon_core::integration::crossover::{find_crossover, CrossoverLauncher};
 use wow_silicon_core::ports::launcher::WowLauncherPort;
 
+fn make_launcher() -> CrossoverLauncher {
+    match std::env::var("PATCHING_DIR") {
+        Ok(p) => CrossoverLauncher::from_patching_dir("Win10", PathBuf::from(p))
+            .expect("CrossOver not found"),
+        Err(_) => CrossoverLauncher::new().expect("CrossOver or WoWSilicon not found"),
+    }
+}
+
 /// Full launch validation — requires:
 /// 1. WoW 3.3.5a client at ~/Documents/ChromieCraft_3.3.5a (or set WOW_DIR env var)
-/// 2. WoWSilicon.app installed in ~/Applications or /Applications
+/// 2. PATCHING_DIR env var (vendor path) or WoWSilicon.app installed
 /// 3. CrossOver.app installed
 #[test]
 #[ignore]
@@ -14,7 +22,7 @@ fn test_wow_launches() {
         .map(PathBuf::from)
         .unwrap_or_else(|_| dirs_home().join("Documents/ChromieCraft_3.3.5a"));
 
-    let launcher = CrossoverLauncher::new().expect("CrossOver or WoWSilicon not found");
+    let launcher = make_launcher();
 
     launcher
         .check_prerequisites()
@@ -32,7 +40,7 @@ fn test_wow_launches() {
 #[test]
 #[ignore]
 fn test_check_prerequisites() {
-    let launcher = CrossoverLauncher::new().expect("CrossOver or WoWSilicon not found");
+    let launcher = make_launcher();
     launcher
         .check_prerequisites()
         .expect("prerequisites not met");

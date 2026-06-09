@@ -27,6 +27,9 @@ Working tool for World of Warcraft 3.3.5a on Apple Silicon using a Ports & Adapt
 See docs/architecture.md for Ports & Adapters design.
 See docs/profiling-guide.md for WoW profiling workflow (Frida, x87 tracing, CPU sampling).
 
+## Release Process
+See docs/release-process.md for versioning workflow, conventional commits, and automated releases via release-plz.
+
 ## Key Principles
 - Build UPON working libraries, don't replace initially
 - Test-first, agent-first development

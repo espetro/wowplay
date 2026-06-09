@@ -216,7 +216,7 @@ dependencies = [
 
 [[package]]
 name = "wow-silicon-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libloading",
  "thiserror",
@@ -224,14 +224,14 @@ dependencies = [
 
 [[package]]
 name = "wow-silicon-integration"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "wow-silicon-core",
 ]
 
 [[package]]
 name = "wowplay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "wow-silicon-core",

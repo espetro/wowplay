@@ -1,12 +1,12 @@
+use std::fs;
 use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
 use wow_silicon_core::integration::crossover::{
-    apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon, wowsilicon_resources,
+    apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
+    is_rosetta_service_running, wineloader2_path, wowsilicon_resources, CrossoverLauncher,
 };
-use wow_silicon_core::ports::launcher::WowLauncherPort;
-use wow_silicon_core::integration::crossover::CrossoverLauncher;
 
 #[derive(Parser)]
 #[command(name = "wowplay", about = "Run WoW 3.3.5a on Apple Silicon")]
@@ -28,6 +28,9 @@ enum Cmd {
         /// Print diagnostics then exit without launching
         #[arg(long)]
         diagnose: bool,
+        /// Skip log file creation; raw stderr only
+        #[arg(long)]
+        no_log: bool,
     },
     /// One-time setup: stage DLLs and create wineloader2
     Setup {
@@ -36,7 +39,11 @@ enum Cmd {
         wow_dir: PathBuf,
     },
     /// Print environment checklist and exit
-    Diagnose,
+    Diagnose {
+        /// WoW directory for DivxDecoder and wineloader2 checks
+        #[arg(long)]
+        wow_dir: Option<PathBuf>,
+    },
 }
 
 fn info(msg: &str) {
@@ -47,17 +54,27 @@ fn ok(msg: &str) {
     eprintln!("  \x1b[32m[ ok ]\x1b[0m {msg}");
 }
 
+fn warn(msg: &str) {
+    eprintln!("  \x1b[33m[warn]\x1b[0m {msg}");
+}
+
 fn die(msg: &str) -> ! {
     eprintln!("  \x1b[31m[fail]\x1b[0m {msg}");
     process::exit(1);
 }
 
-fn run_diagnose() {
+fn run_diagnose(wow_dir: Option<&PathBuf>) {
     info("Checking CrossOver…");
-    match find_crossover() {
-        Ok(p) => ok(&format!("CrossOver: {}", p.display())),
-        Err(e) => eprintln!("  \x1b[33m[warn]\x1b[0m CrossOver: {e}"),
-    }
+    let cx_opt = match find_crossover() {
+        Ok(p) => {
+            ok(&format!("CrossOver: {}", p.display()));
+            Some(p)
+        }
+        Err(e) => {
+            warn(&format!("CrossOver: {e}"));
+            None
+        }
+    };
 
     info("Checking WoWSilicon…");
     match find_wowsilicon() {
@@ -67,33 +84,91 @@ fn run_diagnose() {
             if res.exists() {
                 ok(&format!("WoWSilicon resources: {}", res.display()));
             } else {
-                eprintln!("  \x1b[33m[warn]\x1b[0m resources dir missing: {}", res.display());
+                warn(&format!("resources dir missing: {}", res.display()));
             }
         }
-        Err(e) => eprintln!("  \x1b[33m[warn]\x1b[0m WoWSilicon: {e}"),
+        Err(e) => warn(&format!("WoWSilicon: {e}")),
     }
 
-    let wineloader2 = PathBuf::from("/tmp/cx-bin/wineloader64");
-    if wineloader2.exists() {
-        ok("wineloader64 staged at /tmp/cx-bin/wineloader64");
+    info("Checking rosettax87 service…");
+    if is_rosetta_service_running() {
+        ok("rosettax87 service running");
     } else {
-        eprintln!("  \x1b[33m[warn]\x1b[0m wineloader64 not staged — run `wowplay setup`");
+        warn("rosettax87 not running — will start on launch");
     }
+
+    if let Some(ref cx) = cx_opt {
+        let wl2 = wineloader2_path(cx);
+        info("Checking wineloader2…");
+        if wl2.exists() {
+            ok(&format!("wineloader2: {}", wl2.display()));
+        } else {
+            warn("wineloader2 not staged — run `wowplay setup --wow-dir <dir>`");
+        }
+    }
+
+    if let Some(dir) = wow_dir {
+        info("Checking DivxDecoder…");
+        if dir.join("DivxDecoder.dll.bak").exists() {
+            ok("DivxDecoder.dll patched");
+        } else if dir.join("DivxDecoder.dll").exists() {
+            warn("DivxDecoder.dll not yet patched — will patch on first launch");
+        } else {
+            warn("DivxDecoder.dll not found — reinstall WoW client if launch fails");
+        }
+    }
+}
+
+fn make_log_path() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let log_dir = PathBuf::from(home).join(".local/share/wowplay/logs");
+    fs::create_dir_all(&log_dir).map_err(|e| format!("mkdir logs: {e}"))?;
+    let ts = timestamp_now();
+    Ok(log_dir.join(format!("{ts}.log")))
+}
+
+fn timestamp_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let ss = secs % 60;
+    let mins = secs / 60;
+    let mm = mins % 60;
+    let hours = mins / 60;
+    let hh = hours % 24;
+    let (year, month, day) = days_to_ymd((hours / 24) as u32);
+    format!("{year:04}{month:02}{day:02}T{hh:02}{mm:02}{ss:02}")
+}
+
+// Hinnant civil_from_days — converts Unix day count to (year, month, day).
+fn days_to_ymd(days: u32) -> (u32, u32, u32) {
+    let z = days as i64 + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y as u32, m, d)
 }
 
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Cmd::Diagnose => {
-            run_diagnose();
+        Cmd::Diagnose { wow_dir } => {
+            run_diagnose(wow_dir.as_ref());
         }
 
         Cmd::Setup { wow_dir } => {
             info("Setting up wineloader2…");
             let crossover = find_crossover().unwrap_or_else(|e| die(&e.to_string()));
             create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
-            ok("wineloader64 staged");
+            ok("wineloader2 staged");
 
             info("Applying game patch…");
             let wowsilicon = find_wowsilicon().unwrap_or_else(|e| die(&e.to_string()));
@@ -102,26 +177,47 @@ fn main() {
             ok("game patch applied");
         }
 
-        Cmd::Run { wow_dir, bottle, diagnose } => {
+        Cmd::Run {
+            wow_dir,
+            bottle,
+            diagnose,
+            no_log,
+        } => {
             if diagnose {
-                run_diagnose();
+                run_diagnose(wow_dir.as_ref());
                 return;
             }
 
-            let launcher = CrossoverLauncher::with_bottle(&bottle)
-                .unwrap_or_else(|e| die(&e.to_string()));
+            let launcher =
+                CrossoverLauncher::with_bottle(&bottle).unwrap_or_else(|e| die(&e.to_string()));
 
             let wow_dir = wow_dir.unwrap_or_else(|| {
                 die("--wow-dir is required; e.g. wowplay run --wow-dir ~/WoW");
             });
 
+            let log_path = if no_log {
+                None
+            } else {
+                match make_log_path() {
+                    Ok(p) => Some(p),
+                    Err(e) => {
+                        warn(&format!("could not create log file: {e}"));
+                        None
+                    }
+                }
+            };
+
             info(&format!("Launching WoW from {}…", wow_dir.display()));
-            let mut child = launcher
-                .launch_wow(&wow_dir)
+            let session = launcher
+                .launch_wow_logged(&wow_dir, log_path.as_deref())
                 .unwrap_or_else(|e| die(&e.to_string()));
 
-            ok(&format!("WoW started (pid {})", child.id()));
-            child.wait().unwrap_or_else(|e| die(&e.to_string()));
+            ok(&format!("WoW started (pid {})", session.pid()));
+            session.wait().unwrap_or_else(|e| die(&e.to_string()));
+
+            if let Some(ref p) = log_path {
+                info(&format!("log: {}", p.display()));
+            }
         }
     }
 }

@@ -5,19 +5,19 @@
 //! - `mods/winerosetta.dll` loaded via `dlls.txt`
 //! - `mods/libSiliconPatch.dll` (WotLK-specific x87 optimizations) via `dlls.txt`
 //! - `rosettax87/` arm64 JIT translator
-//! - `/tmp/cx-bin/wineloader64` — unsigned copy keeping the exact filename
+//! - `$CX_HOSTED/wineloader2` — unsigned copy placed alongside Wine siblings
 
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use crate::adapters::errors::LaunchError;
 use crate::ports::launcher::WowLauncherPort;
 
 const CX_HOSTED_REL: &str = "Contents/SharedSupport/CrossOver/CrossOver-Hosted Application";
 
-// CrossOver may ship wineloader (x86_64) or wineloader64 depending on version.
-// We check both at runtime.
 const WINELOADER_REL: &str =
     "Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wineloader";
 const WINELOADER64_REL: &str =
@@ -67,8 +67,7 @@ pub fn wowsilicon_resources(wowsilicon: &Path) -> PathBuf {
 
 /// Returns the path to CrossOver's wineloader binary.
 ///
-/// Checks for `wineloader64` first (newer CrossOver), then falls back
-/// to `wineloader` (older/other versions).
+/// Checks for `wineloader64` first (newer CrossOver), then falls back to `wineloader`.
 pub fn wineloader_path(crossover: &Path) -> PathBuf {
     let loader64 = crossover.join(WINELOADER64_REL);
     if loader64.exists() {
@@ -77,10 +76,15 @@ pub fn wineloader_path(crossover: &Path) -> PathBuf {
     crossover.join(WINELOADER_REL)
 }
 
-/// Creates an unsigned copy of CrossOver's wineloader at `/tmp/cx-bin/wineloader64`.
+/// Returns the expected path for the unsigned wineloader2 copy.
+pub fn wineloader2_path(crossover: &Path) -> PathBuf {
+    crossover.join(CX_HOSTED_REL).join("wineloader2")
+}
+
+/// Creates an unsigned copy of CrossOver's wineloader at `$CX_HOSTED/wineloader2`.
 ///
-/// Wine re-execs itself by searching for the loader by its current filename.
-/// We keep the name exactly `wineloader64` in a writable dir for compatibility.
+/// Placing it alongside wineserver, wineboot, etc. lets Wine resolve its sibling
+/// binaries by directory when re-execing child processes.
 pub fn create_wineloader2(crossover: &Path) -> Result<PathBuf, LaunchError> {
     let src = wineloader_path(crossover);
     if !src.exists() {
@@ -90,11 +94,7 @@ pub fn create_wineloader2(crossover: &Path) -> Result<PathBuf, LaunchError> {
         )));
     }
 
-    let dir = PathBuf::from("/tmp/cx-bin");
-    fs::create_dir_all(&dir)
-        .map_err(|e| LaunchError::SetupFailed(format!("mkdir /tmp/cx-bin: {e}")))?;
-
-    let dst = dir.join("wineloader64");
+    let dst = wineloader2_path(crossover);
     fs::copy(&src, &dst).map_err(|e| LaunchError::SetupFailed(format!("copy wineloader: {e}")))?;
 
     Command::new("codesign")
@@ -127,12 +127,10 @@ pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchEr
         Ok(())
     };
 
-    // D9VK: DirectX9 → Vulkan → MoltenVK → Metal. Required for rendering on Apple Silicon.
+    // D9VK: DirectX9 → Vulkan → MoltenVK → Metal.
     copy("d9vk/d3d9.dll", "d3d9.dll")?;
 
-    // winerosetta.dll at game root for WINEDLLOVERRIDES=winerosetta=n,b.
-    // Also in mods/ for dlls.txt on newer CrossOver builds.
-    copy("winerosetta/winerosetta.dll", "winerosetta.dll")?;
+    // winerosetta only in mods/; dlls.txt handles loading. No game-root copy.
     copy("winerosetta/winerosetta.dll", "mods/winerosetta.dll")?;
     copy(
         "libSiliconPatch/wotlk/libSiliconPatch.dll",
@@ -153,7 +151,6 @@ pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchEr
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&p, fs::Permissions::from_mode(0o755))
                 .map_err(|e| LaunchError::SetupFailed(format!("chmod {}: {e}", p.display())))?;
-            // Remove macOS quarantine flag (copied from a quarantined .app bundle)
             Command::new("xattr")
                 .args(["-d", "com.apple.quarantine", &p.display().to_string()])
                 .status()
@@ -169,7 +166,6 @@ pub fn apply_game_patch(wow_dir: &Path, resources: &Path) -> Result<(), LaunchEr
     Ok(())
 }
 
-/// Appends entries to `dlls.txt` (Wine reads this to load extra DLLs at startup).
 fn update_dlls_txt(wow_dir: &Path, entries: &[&str]) -> Result<(), LaunchError> {
     let path = wow_dir.join("dlls.txt");
     let existing = fs::read_to_string(&path).unwrap_or_default();
@@ -191,6 +187,7 @@ pub fn wine_env(crossover: &Path, bottle_name: &str) -> Vec<(String, String)> {
     let wineprefix = home_dir().unwrap_or_default().join(format!(
         "Library/Application Support/CrossOver/Bottles/{bottle_name}"
     ));
+    let wineloader2 = cx_hosted.join("wineloader2");
 
     vec![
         ("CX_ROOT".into(), cx_root.display().to_string()),
@@ -200,38 +197,122 @@ pub fn wine_env(crossover: &Path, bottle_name: &str) -> Vec<(String, String)> {
             "WINESERVER".into(),
             cx_hosted.join("wineserver").display().to_string(),
         ),
-        ("WINELOADER".into(), "/tmp/cx-bin/wineloader64".into()),
+        ("WINELOADER".into(), wineloader2.display().to_string()),
+        // d3d9=n,b: load D9VK. winerosetta loads via dlls.txt — no override needed.
+        ("WINEDLLOVERRIDES".into(), "d3d9=n,b".into()),
         (
-            "WINEDLLPATH".into(),
-            format!(
-                "{}/lib/wine:{}/lib64/wine",
-                cx_root.display(),
-                cx_root.display()
-            ),
+            "WINEDEBUG".into(),
+            "warn+all,err+all,+loaddll,+module".into(),
         ),
-        // d3d9=n,b: load D9VK; winerosetta=n,b: load x87 VEH patcher
-        ("WINEDLLOVERRIDES".into(), "d3d9=n,b;winerosetta=n,b".into()),
-        (
-            "DYLD_LIBRARY_PATH".into(),
-            format!("{}:{}", cx_root.join("lib").display(), cx_hosted.display()),
-        ),
-        (
-            "DYLD_FALLBACK_LIBRARY_PATH".into(),
-            format!("{}/lib:/usr/lib", cx_root.display()),
-        ),
-        // D9VK / MoltenVK performance
         ("MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS".into(), "1".into()),
         ("DXVK_ASYNC".into(), "1".into()),
     ]
 }
 
-/// Orchestrates a full WoW 3.3.5a session via rosettax87 (from WoWSilicon) + CrossOver.
+/// Patches DivxDecoder.dll once via libDllLdr — required for winerosetta to inject.
+fn bootstrap_divx_decoder(wow_dir: &Path, wineloader2: &Path) -> Result<(), LaunchError> {
+    if wow_dir.join("DivxDecoder.dll.bak").exists() {
+        return Ok(());
+    }
+    if !wow_dir.join("DivxDecoder.dll").exists() {
+        return Err(LaunchError::SetupFailed(
+            "DivxDecoder.dll not found — reinstall client".into(),
+        ));
+    }
+    Command::new(wineloader2)
+        .args(["rundll32", "libDllLdr.dll,PatchDivxDecoder"])
+        .arg(wow_dir)
+        .current_dir(wow_dir)
+        .env(
+            "WINEDLLOVERRIDES",
+            "winemenubuilder.exe=d;mscoree=d;mshtml=d",
+        )
+        .env("WINEDEBUG", "-all")
+        .status()
+        .map_err(LaunchError::SpawnFailed)?;
+    Ok(())
+}
+
+/// Returns true if the rosettax87 JIT service is already running.
+pub fn is_rosetta_service_running() -> bool {
+    std::path::Path::new("/var/run/rosetta_helper.sock").exists()
+        || Command::new("pgrep")
+            .args(["-x", "rosettax87"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+}
+
+fn ensure_rosetta_service(rosettax87: &Path) -> Result<(), LaunchError> {
+    if is_rosetta_service_running() {
+        return Ok(());
+    }
+    Command::new("sudo")
+        .arg(rosettax87)
+        .spawn()
+        .map_err(LaunchError::SpawnFailed)?;
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    if !is_rosetta_service_running() {
+        return Err(LaunchError::SetupFailed(
+            "rosettax87 failed to start — check sudo permissions".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn tee_to_log(
+    reader: impl Read + Send + 'static,
+    mut terminal: impl Write + Send + 'static,
+    log: Arc<Mutex<fs::File>>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        let mut reader = reader;
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    let _ = terminal.write_all(&buf[..n]);
+                    let _ = terminal.flush();
+                    if let Ok(mut f) = log.lock() {
+                        let _ = f.write_all(&buf[..n]);
+                    }
+                }
+            }
+        }
+    })
+}
+
+/// A running WoW session, with optional background log-tee threads.
+pub struct WowSession {
+    child: Child,
+    log_threads: Vec<std::thread::JoinHandle<()>>,
+}
+
+impl WowSession {
+    /// Returns the OS PID of the WoW process.
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
+    /// Waits for WoW to exit and joins any log threads.
+    pub fn wait(mut self) -> std::io::Result<std::process::ExitStatus> {
+        let status = self.child.wait()?;
+        for t in self.log_threads {
+            let _ = t.join();
+        }
+        Ok(status)
+    }
+}
+
+/// Orchestrates a full WoW 3.3.5a session via rosettax87 + CrossOver.
 ///
 /// Launch sequence:
-/// 1. Apply game patch: stage D9VK d3d9.dll, winerosetta, libSiliconPatch, rosettax87
-/// 2. Create `/tmp/cx-bin/wineloader64` (unsigned copy, exact filename)
-/// 3. Set up CrossOver/Wine + D9VK env vars
-/// 4. `rosettax87 /tmp/cx-bin/wineloader64 WoW.exe` (from WoW dir)
+/// 1. Apply game patch: stage D9VK, winerosetta (mods/ only), libSiliconPatch, rosettax87
+/// 2. Create `$CX_HOSTED/wineloader2` (unsigned copy, alongside Wine siblings)
+/// 3. Patch DivxDecoder.dll once via libDllLdr (enables winerosetta injection)
+/// 4. Ensure rosettax87 background service is running
+/// 5. `rosettax87 $CX_HOSTED/wineloader2 WoW.exe` (from WoW dir)
 pub struct CrossoverLauncher {
     crossover: PathBuf,
     wowsilicon_resources: PathBuf,
@@ -255,6 +336,82 @@ impl CrossoverLauncher {
             bottle: bottle.to_string(),
         })
     }
+
+    /// Launches WoW, optionally tee-ing stdout/stderr to a log file.
+    pub fn launch_wow_logged(
+        &self,
+        wow_dir: &Path,
+        log_path: Option<&Path>,
+    ) -> Result<WowSession, LaunchError> {
+        self.check_prerequisites()?;
+
+        apply_game_patch(wow_dir, &self.wowsilicon_resources)?;
+        let wineloader2 = create_wineloader2(&self.crossover)?;
+
+        let rosettax87 = wow_dir.join("rosettax87/rosettax87");
+        bootstrap_divx_decoder(wow_dir, &wineloader2)?;
+        ensure_rosetta_service(&rosettax87)?;
+
+        let wow_exe = ["WoW.exe", "wow.exe", "Wow.exe"]
+            .iter()
+            .map(|name| wow_dir.join(name))
+            .find(|p| p.exists())
+            .ok_or_else(|| {
+                LaunchError::WowDirNotFound(format!("WoW.exe not found in {}", wow_dir.display()))
+            })?;
+
+        let env_vars = wine_env(&self.crossover, &self.bottle);
+
+        eprintln!(
+            "  \x1b[34m[info]\x1b[0m rosettax87:  {}",
+            rosettax87.display()
+        );
+        eprintln!(
+            "  \x1b[34m[info]\x1b[0m wineloader2: {}",
+            wineloader2.display()
+        );
+        eprintln!("  \x1b[34m[info]\x1b[0m WoW:         {}", wow_exe.display());
+        eprintln!("  \x1b[34m[info]\x1b[0m bottle:      {}", self.bottle);
+        eprintln!(
+            "  \x1b[34m[info]\x1b[0m log:         {}",
+            log_path
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "(none)".into())
+        );
+
+        let mut cmd = Command::new(&rosettax87);
+        cmd.arg(&wineloader2).arg(&wow_exe).current_dir(wow_dir);
+        for (k, v) in env_vars {
+            cmd.env(k, v);
+        }
+
+        let (child, log_threads) = if let Some(log_path) = log_path {
+            let log_file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path)
+                .map_err(|e| {
+                    LaunchError::SetupFailed(format!("open log {}: {e}", log_path.display()))
+                })?;
+            let log = Arc::new(Mutex::new(log_file));
+
+            cmd.stdout(Stdio::piped());
+            cmd.stderr(Stdio::piped());
+
+            let mut child = cmd.spawn().map_err(LaunchError::SpawnFailed)?;
+            let stdout = child.stdout.take().expect("stdout piped");
+            let stderr = child.stderr.take().expect("stderr piped");
+
+            let t1 = tee_to_log(stdout, std::io::stdout(), Arc::clone(&log));
+            let t2 = tee_to_log(stderr, std::io::stderr(), log);
+            (child, vec![t1, t2])
+        } else {
+            let child = cmd.spawn().map_err(LaunchError::SpawnFailed)?;
+            (child, vec![])
+        };
+
+        Ok(WowSession { child, log_threads })
+    }
 }
 
 impl WowLauncherPort for CrossoverLauncher {
@@ -274,29 +431,8 @@ impl WowLauncherPort for CrossoverLauncher {
     }
 
     fn launch_wow(&self, wow_dir: &Path) -> Result<Child, LaunchError> {
-        self.check_prerequisites()?;
-
-        apply_game_patch(wow_dir, &self.wowsilicon_resources)?;
-        let wineloader2 = create_wineloader2(&self.crossover)?;
-
-        let wow_exe = ["WoW.exe", "wow.exe", "Wow.exe"]
-            .iter()
-            .map(|name| wow_dir.join(name))
-            .find(|p| p.exists())
-            .ok_or_else(|| {
-                LaunchError::WowDirNotFound(format!("WoW.exe not found in {}", wow_dir.display()))
-            })?;
-
-        let rosettax87 = wow_dir.join("rosettax87/rosettax87");
-        let env_vars = wine_env(&self.crossover, &self.bottle);
-
-        let mut cmd = Command::new(&rosettax87);
-        cmd.arg(&wineloader2).arg(&wow_exe).current_dir(wow_dir);
-        for (k, v) in env_vars {
-            cmd.env(k, v);
-        }
-
-        cmd.spawn().map_err(LaunchError::SpawnFailed)
+        let session = self.launch_wow_logged(wow_dir, None)?;
+        Ok(session.child)
     }
 }
 

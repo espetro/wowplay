@@ -37,6 +37,10 @@ enum Cmd {
         /// Path to WoW 3.3.5a game directory
         #[arg(long)]
         wow_dir: PathBuf,
+        /// Path to a WoWSilicon Patching directory (skips app-bundle detection).
+        /// Use vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching from the repo.
+        #[arg(long)]
+        patching_dir: Option<PathBuf>,
     },
     /// Print environment checklist and exit
     Diagnose {
@@ -186,15 +190,20 @@ fn main() {
             run_diagnose(wow_dir.as_ref());
         }
 
-        Cmd::Setup { wow_dir } => {
+        Cmd::Setup { wow_dir, patching_dir } => {
             info("Setting up wineloader2…");
             let crossover = find_crossover().unwrap_or_else(|e| die(&e.to_string()));
             create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
             ok("wineloader2 staged");
 
             info("Applying game patch…");
-            let wowsilicon = find_wowsilicon().unwrap_or_else(|e| die(&e.to_string()));
-            let resources = wowsilicon_resources(&wowsilicon);
+            let resources = match patching_dir {
+                Some(p) => p,
+                None => {
+                    let wowsilicon = find_wowsilicon().unwrap_or_else(|e| die(&e.to_string()));
+                    wowsilicon_resources(&wowsilicon)
+                }
+            };
             apply_game_patch(&wow_dir, &resources).unwrap_or_else(|e| die(&e.to_string()));
             ok("game patch applied");
         }

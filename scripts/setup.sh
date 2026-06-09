@@ -29,6 +29,10 @@ if [ -x "$HOME/.local/share/mise/installs/zig/0.16.0/bin/zig" ]; then
     ZIG="$HOME/.local/share/mise/installs/zig/0.16.0/bin/zig"
 fi
 
+# ── Vendor submodules ────────────────────────────────────────────────────────
+echo "→ Initialising vendor submodules…"
+git -C "$REPO_ROOT" submodule update --init --recursive vendor/rosettax87_jit vendor/wowsilicon
+
 # ── Build rosettax87_jit (native macOS arm64 runtime_loader) ─────────────────
 ROSETTA_JIT_SRC="$REPO_ROOT/vendor/rosettax87_jit"
 ROSETTA_JIT_BIN="$ROSETTA_JIT_SRC/build/bin/runtime_loader"
@@ -36,7 +40,7 @@ ROSETTA_JIT_BIN="$ROSETTA_JIT_SRC/build/bin/runtime_loader"
 if [ ! -f "$ROSETTA_JIT_BIN" ]; then
     echo "→ Building rosettax87_jit..."
     if [ ! -d "$ROSETTA_JIT_SRC/.git" ]; then
-        git -C "$REPO_ROOT" submodule update --init --recursive vendor/rosettax87_jit
+        git -C "$REPO_ROOT" submodule update --init vendor/rosettax87_jit
     fi
     cmake -B "$ROSETTA_JIT_SRC/build" -DCMAKE_BUILD_TYPE=Release "$ROSETTA_JIT_SRC"
     cmake --build "$ROSETTA_JIT_SRC/build" --config Release
@@ -67,6 +71,10 @@ chmod +x "$REPO_ROOT/.git/hooks/pre-commit"
 echo ""
 echo "✅ Setup complete."
 echo ""
+PATCHING_DIR="$REPO_ROOT/vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching"
+
 echo "Next steps:"
 echo "  1. Put your WoW 3.3.5a client somewhere, e.g. ~/Desktop/wow/WoW"
-echo "  2. Launch: WOW_DIR=~/Desktop/wow/WoW scripts/launch-wow.sh"
+echo "  2. One-time patch:  wowplay setup --wow-dir ~/Desktop/wow/WoW \\"
+echo "                        --patching-dir $PATCHING_DIR"
+echo "  3. Launch:          wowplay run --wow-dir ~/Desktop/wow/WoW"

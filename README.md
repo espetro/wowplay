@@ -8,14 +8,16 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/espetro/play-wow-on-silicon?style=flat&label=latest)](https://github.com/yourusername/play-wow-on-silicon/releases/latest)
 
-**macOS only** · Requires [CrossOver](https://www.codeweavers.com/crossover) 23+ (external runtime, not included)
+**macOS only (Apple Silicon)** · Requires [CrossOver](https://www.codeweavers.com/crossover), [Whisky](https://github.com/Whisky-App/Whisky), or [Moonshine](https://github.com/ybmeng/moonshine) — any one will do.
 
-1. Download the latest release for your Mac above.
-2. Install CrossOver and run it at least once.
-3. Have a WoW 3.3.5a client folder ready.
-4. Run `./scripts/setup.sh` to build the native components.
+1. Install one of the runners above.
+2. Have a WoW 3.3.5a client folder ready.
+3. Download the latest release zip above and unzip it.
+4. Run `./wowplay setup --wow-dir ~/Documents/WoW_3.3.5a`
+   (detects runners, stages patching resources, applies patches)
+5. Run `./wowplay run --wow-dir ~/Documents/WoW_3.3.5a`
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to build from source or hack on the project.
+See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to build from source or contribute.
 
 ## Features
 
@@ -28,43 +30,44 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to build from source or hack 
 ## How to Use
 
 ```bash
-# 1. One-time setup (builds native components and vendor libraries)
-./scripts/setup.sh
+# One-time setup (detects runners, stages resources, applies patches)
+./wowplay setup --wow-dir ~/Documents/WoW_3.3.5a
 
-# 2. Point the tool at your WoW folder and apply patches
-wowplay setup --wow-dir ~/Documents/WoW_3.3.5a \
-  --patching-dir vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching
-
-# 3. Launch (CrossOver — default)
+# Launch (CrossOver — default)
 wowplay run --wow-dir ~/Documents/WoW_3.3.5a
 
-# Launch with Whisky instead of CrossOver
-wowplay run --runner whisky --wow-dir ~/Documents/WoW_3.3.5a
+# Launch with Whisky or Moonshine
+wowplay run --runner whisky    --wow-dir ~/Documents/WoW_3.3.5a
+wowplay run --runner moonshine --wow-dir ~/Documents/WoW_3.3.5a
 
-# Whisky with custom app location
+# Whisky with a custom app location
 wowplay run --runner whisky --whisky-bundle ~/Applications/Whisky.app --wow-dir ~/Documents/WoW_3.3.5a
 
 # Diagnose without launching
 wowplay diagnose
 ```
 
+## Contributing / Build from Source
+
+```bash
+# Install lefthook, Rust, and Zig first, then:
+./scripts/setup.sh
+cargo build -p wowplay
+```
+
 ## Troubleshooting
 
 ### "DivxDecoder.dll.InitializeDivxDecoder" error
-WoW 3.3.5a is a **32-bit x86** application and requires the `wineloader2` (x86) loader, not `wineloader64` (x86_64). The launch script automatically creates `wineloader2` by copying and re-signing the original `wineloader`. If this step was skipped, re-run `./scripts/setup.sh`.
+WoW 3.3.5a is a **32-bit x86** application and requires the `wineloader2` (x86) loader, not `wineloader64` (x86_64). `wowplay setup` creates `wineloader2` automatically when CrossOver is installed. Re-run `wowplay setup --wow-dir <dir>` if this step was skipped.
 
 ### Game crashes at character selection or during gameplay
-Ensure the x87 runtime components were built successfully:
-```bash
-./scripts/setup.sh
-```
-This rebuilds `rosettax87_jit/runtime_loader` and `winerosetta.dll` if needed.
+Ensure patching resources are staged: re-run `wowplay setup --wow-dir <dir>`.
 
-### "damaged" app warnings
-The script removes macOS quarantine flags from binaries, but you may still need to allow them in **System Settings > Privacy & Security**.
+### "damaged" / Gatekeeper warnings
+Right-click the `wowplay` binary and choose **Open** once to bypass Gatekeeper for ad-hoc signed builds.
 
 ### Diagnostics
-Run `./scripts/launch-wow.sh --diagnose` to verify all components before launching.
+Run `wowplay diagnose` to verify all components before launching.
 
 ## Status
 

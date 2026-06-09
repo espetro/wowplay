@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "autoresearch": {
+      "source": "sndrgrdn/opencode-autoresearch",
+      "sourceType": "github",
+      "skillPath": "skills/autoresearch/SKILL.md",
+      "computedHash": "3298c6a51767cec4cc420901f16c5b97bddeeee8bf64fca5b210f50e41fb5992"
+    }
+  }
+}

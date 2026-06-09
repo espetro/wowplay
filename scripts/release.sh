@@ -129,12 +129,8 @@ if [[ "${SKIP_NOTARIZE}" != "true" ]]; then
   echo "==> Notarizing…"
   xcrun notarytool submit "${ZIP_PATH}" "${NOTARY_AUTH[@]}" --wait
 
-  echo "==> Stapling…"
-  xcrun stapler staple "${DIST_DIR}/${BIN_NAME}"
-
-  echo "==> Re-packaging with stapled binary…"
-  rm -f "${ZIP_PATH}"
-  ditto -c -k "${DIST_DIR}" "${ZIP_PATH}"
+  # Flat binaries cannot be stapled (only .app bundles, .dmg, .pkg support
+  # stapling). The notarization ticket is verified online by Gatekeeper.
 fi
 
 echo ""

@@ -10,7 +10,7 @@ use std::process::{Child, Command};
 use crate::adapters::errors::LaunchError;
 use crate::ports::runner::RunnerPort;
 
-const WHISKY_APP_PATH: &str = "/Applications/Whisky.app";
+const WHISKY_APP_PATHS: &[&str] = &["/Applications/Whisky.app", "~/Applications/Whisky.app"];
 const WHISKY_CMD_REL: &str = "Contents/Resources/WhiskyCmd";
 const WINE_BIN_DIR: &str = "Libraries/Wine/bin";
 
@@ -31,13 +31,24 @@ impl WhiskyAdapter {
     }
 
     /// Discover Whisky.app on this machine.
+    ///
+    /// Checks user-local (`~/Applications`) first, then system-wide (`/Applications`).
     pub fn find_bundle() -> Result<PathBuf, LaunchError> {
-        let system = PathBuf::from(WHISKY_APP_PATH);
-        if system.exists() {
-            return Ok(system);
+        let home = home_dir().unwrap_or_default();
+
+        for path in WHISKY_APP_PATHS {
+            let expanded = if let Some(rest) = path.strip_prefix("~/") {
+                home.join(rest)
+            } else {
+                PathBuf::from(path)
+            };
+            if expanded.exists() {
+                return Ok(expanded);
+            }
         }
+
         Err(LaunchError::SetupFailed(
-            "Whisky.app not found; install from getwhisky.app or GitHub (Whisky-App/Whisky)".into(),
+            "Whisky.app not found in ~/Applications or /Applications; install from getwhisky.app or GitHub (Whisky-App/Whisky)".into(),
         ))
     }
 
@@ -155,9 +166,17 @@ mod tests {
 
     #[test]
     fn test_find_bundle_when_whisky_not_installed() {
-        // This test will fail if Whisky is installed, which is expected
+        // This test will be skipped if Whisky is installed anywhere
         // In CI or clean environments, it validates the error message
-        if !Path::new(WHISKY_APP_PATH).exists() {
+        let any_installed = WHISKY_APP_PATHS.iter().any(|p| {
+            let expanded = if let Some(rest) = p.strip_prefix("~/") {
+                home_dir().unwrap_or_default().join(rest)
+            } else {
+                PathBuf::from(p)
+            };
+            expanded.exists()
+        });
+        if !any_installed {
             let result = WhiskyAdapter::find_bundle();
             assert!(result.is_err());
             let err = result.unwrap_err().to_string();
@@ -167,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_adapter_name() {
-        let adapter = WhiskyAdapter::new(PathBuf::from(WHISKY_APP_PATH));
+        let adapter = WhiskyAdapter::new(PathBuf::from("/Applications/Whisky.app"));
         assert_eq!(adapter.name(), "Whisky");
     }
 }

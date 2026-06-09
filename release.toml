@@ -1,9 +1,5 @@
 [workspace]
-# All packages release together under a single workspace tag: v0.2.0
-tag_prefix = "v"
-tag_name = "v{{version}}"
-# Maintain root-level CHANGELOG with workspace-wide changes
-changelog_path = "./CHANGELOG.md"
-# No crates.io publishing — internal tools only
 publish = false
 semver_check = true
+changelog_path = "CHANGELOG.md"
+tag_name_template = "v{{version}}"

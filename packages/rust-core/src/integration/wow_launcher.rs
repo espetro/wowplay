@@ -163,17 +163,30 @@ impl WowLauncher {
             "rosettax87/libRuntimeRosettax87",
             "rosettax87/libRuntimeRosettax87",
         )?;
-        for bin in ["rosettax87/rosettax87", "rosettax87/libRuntimeRosettax87"] {
-            let p = wow_dir.join(bin);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for bin in ["rosettax87/rosettax87", "rosettax87/libRuntimeRosettax87"] {
+                let p = wow_dir.join(bin);
                 fs::set_permissions(&p, fs::Permissions::from_mode(0o755))
                     .map_err(|e| LaunchError::SetupFailed(format!("chmod {}: {e}", p.display())))?;
-                Command::new("xattr")
-                    .args(["-d", "com.apple.quarantine", &p.display().to_string()])
-                    .status()
-                    .ok();
+            }
+            // Belt-and-suspenders: signed binaries from the zip/DMG should not need this,
+            // but unsigned/ad-hoc builds still get quarantine-blocked without it.
+            let rosettax87_dir = wow_dir.join("rosettax87");
+            let status = Command::new("xattr")
+                .args([
+                    "-dr",
+                    "com.apple.quarantine",
+                    &rosettax87_dir.display().to_string(),
+                ])
+                .status();
+            if status.map(|s| !s.success()).unwrap_or(true) {
+                eprintln!(
+                    "  \x1b[33m[warn]\x1b[0m quarantine clear on rosettax87 dir had non-zero exit \
+                     — if launch fails, run: xattr -dr com.apple.quarantine {:?}",
+                    rosettax87_dir
+                );
             }
         }
 
@@ -287,7 +300,9 @@ impl WowLauncher {
         std::thread::sleep(std::time::Duration::from_secs(1));
         if !Self::is_rosetta_service_running() {
             return Err(LaunchError::SetupFailed(
-                "rosettax87 failed to start — check that the binary is not quarantined".into(),
+                "rosettax87 failed to start — if the binary is quarantined, run: \
+                 xattr -dr com.apple.quarantine <wow_dir>/rosettax87"
+                    .into(),
             ));
         }
         Ok(())

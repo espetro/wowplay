@@ -66,6 +66,23 @@ jobs:
           security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
+      - name: Sign inner binaries (rosettax87)
+        run: |
+          ENTITLEMENTS="packages/gui/Rosettax87.entitlements"
+          # Sign libRuntimeRosettax87 first (dependency), then rosettax87.
+          codesign \
+            --sign "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)" \
+            --options runtime --timestamp --force \
+            --entitlements "$ENTITLEMENTS" \
+            dist/patching/rosettax87/libRuntimeRosettax87
+          codesign --verify --verbose dist/patching/rosettax87/libRuntimeRosettax87
+          codesign \
+            --sign "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)" \
+            --options runtime --timestamp --force \
+            --entitlements "$ENTITLEMENTS" \
+            dist/patching/rosettax87/rosettax87
+          codesign --verify --verbose dist/patching/rosettax87/rosettax87
+
       - name: Sign binary
         run: |
           codesign \
@@ -85,11 +102,19 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          xcrun notarytool submit wowplay-${{ github.ref_name }}-macos-arm64.zip \
+          SUBMISSION=$(xcrun notarytool submit wowplay-${{ github.ref_name }}-macos-arm64.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait
+            --wait \
+            --output-format json)
+          echo "$SUBMISSION"
+          STATUS=$(echo "$SUBMISSION" | python3 -c 'import sys, json; print(json.load(sys.stdin)["status"])')
+          if [[ "$STATUS" != "Accepted" ]]; then
+            echo "Notarization status: $STATUS — aborting build"
+            exit 1
+          fi
+          echo "Notarization accepted."
 
       - name: Upload to release
         run: gh release upload "${{ github.ref_name }}" wowplay-${{ github.ref_name }}-macos-arm64.zip --clobber
@@ -110,6 +135,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v1
 
+      - run: brew install zig
+
       - name: Install JS dependencies
         run: bun install
 
@@ -119,10 +146,46 @@ jobs:
           mkdir -p packages/gui/binaries
           cp target/aarch64-apple-darwin/release/wowplay packages/gui/binaries/wowplay-aarch64-apple-darwin
 
-      - name: Build GUI
+      - name: Build winerosetta.dll
+        run: zig build --release=safe
+        working-directory: packages/zig-glue
+
+      - name: Stage patching resources
+        run: |
+          mkdir -p packages/gui/patching
+          cp -R vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching/. packages/gui/patching/
+          cp packages/zig-glue/zig-out/bin/winerosetta.dll packages/gui/patching/winerosetta/winerosetta.dll
+
+      - name: Import signing certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Sign rosettax87 inner binaries
+        run: |
+          ENTITLEMENTS="packages/gui/Rosettax87.entitlements"
+          codesign \
+            --sign "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)" \
+            --options runtime --timestamp --force \
+            --entitlements "$ENTITLEMENTS" \
+            packages/gui/patching/rosettax87/libRuntimeRosettax87
+          codesign --verify --verbose packages/gui/patching/rosettax87/libRuntimeRosettax87
+          codesign \
+            --sign "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)" \
+            --options runtime --timestamp --force \
+            --entitlements "$ENTITLEMENTS" \
+            packages/gui/patching/rosettax87/rosettax87
+          codesign --verify --verbose packages/gui/patching/rosettax87/rosettax87
+
+      - name: Build GUI
+        env:
           APPLE_SIGNING_IDENTITY: "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)"
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -139,11 +202,19 @@ jobs:
         run: |
           DMG=$(find target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
           echo "Notarizing $DMG"
-          xcrun notarytool submit "$DMG" \
+          SUBMISSION=$(xcrun notarytool submit "$DMG" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait
+            --wait \
+            --output-format json)
+          echo "$SUBMISSION"
+          STATUS=$(echo "$SUBMISSION" | python3 -c 'import sys, json; print(json.load(sys.stdin)["status"])')
+          if [[ "$STATUS" != "Accepted" ]]; then
+            echo "DMG notarization status: $STATUS — aborting build"
+            exit 1
+          fi
+          echo "Notarization accepted."
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"
 

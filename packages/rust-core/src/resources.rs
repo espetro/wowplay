@@ -32,6 +32,11 @@ pub fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, Launch
             if bundled.exists() {
                 return Ok(bundled);
             }
+            // App bundle layout (Tauri DMG): Contents/MacOS/../Resources/patching
+            let bundle_resources = dir.join("../Resources/patching");
+            if bundle_resources.exists() {
+                return Ok(bundle_resources.canonicalize().unwrap_or(bundle_resources));
+            }
         }
     }
 

@@ -86,6 +86,29 @@ cp -R "${PATCHING_SRC}/." "${DIST_DIR}/patching/"
 cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/patching/winerosetta/winerosetta.dll"
 [[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/patching/winerosetta/winerosetta.pdb"
 
+# ── Sign inner binaries (rosettax87 pair) ───────────────────────────────────
+
+echo ""
+echo "==> Signing inner binaries (rosettax87)…"
+ENTITLEMENTS="${REPO_ROOT}/packages/gui/Rosettax87.entitlements"
+# Sign libRuntimeRosettax87 first (dependency), then rosettax87.
+codesign \
+  --sign "${SIGN_IDENTITY}" \
+  --options runtime \
+  --timestamp \
+  --force \
+  --entitlements "${ENTITLEMENTS}" \
+  "${DIST_DIR}/patching/rosettax87/libRuntimeRosettax87"
+codesign --verify --verbose "${DIST_DIR}/patching/rosettax87/libRuntimeRosettax87"
+codesign \
+  --sign "${SIGN_IDENTITY}" \
+  --options runtime \
+  --timestamp \
+  --force \
+  --entitlements "${ENTITLEMENTS}" \
+  "${DIST_DIR}/patching/rosettax87/rosettax87"
+codesign --verify --verbose "${DIST_DIR}/patching/rosettax87/rosettax87"
+
 # ── Sign CLI binary ──────────────────────────────────────────────────────────
 
 echo ""
@@ -121,7 +144,14 @@ echo "==> Packaging ${ZIP_PATH}…"
 if [[ "${SKIP_NOTARIZE}" != "true" ]]; then
   echo ""
   echo "==> Notarizing…"
-  xcrun notarytool submit "${ZIP_PATH}" "${NOTARY_AUTH[@]}" --wait
+  NOTARY_OUTPUT=$(xcrun notarytool submit "${ZIP_PATH}" "${NOTARY_AUTH[@]}" --wait --output-format json)
+  echo "${NOTARY_OUTPUT}"
+  NOTARY_STATUS=$(echo "${NOTARY_OUTPUT}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["status"])')
+  if [[ "${NOTARY_STATUS}" != "Accepted" ]]; then
+    echo "Notarization status: ${NOTARY_STATUS} — aborting"
+    exit 1
+  fi
+  echo "Notarization accepted."
 
   # Flat binaries cannot be stapled (only .app bundles, .dmg, .pkg support
   # stapling). The notarization ticket is verified online by Gatekeeper.

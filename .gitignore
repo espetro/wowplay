@@ -33,6 +33,8 @@ __pycache__/
 *.o
 .zip
 packages/gui/binaries/
+packages/gui/patching/*
+!packages/gui/patching/.gitkeep
 
 # Test artifacts
 *.log

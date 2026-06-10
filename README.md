@@ -6,7 +6,8 @@
 
 ## Download
 
-[![Latest Release](https://img.shields.io/github/v/release/espetro/play-wow-on-silicon?style=flat&label=latest)](https://github.com/yourusername/play-wow-on-silicon/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/espetro/wowplay?style=flat&label=latest)](https://github.com/espetro/wowplay/releases/latest)
+[![Back this project](https://img.shields.io/badge/back_this_project-%E2%9D%A4-ff69b4)](https://buy.polar.sh/polar_cl_Mv1gdlG7bw3I70EC9IHtfeSHJj4PEKvA7JAUz23CFhj)
 
 **macOS only (Apple Silicon)** · Requires [CrossOver](https://www.codeweavers.com/crossover), [Whisky](https://github.com/Whisky-App/Whisky), or [Moonshine](https://github.com/ybmeng/moonshine) — any one will do.
 

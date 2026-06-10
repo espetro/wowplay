@@ -1,9 +1,14 @@
 {
   "identifier": "default",
+  "windows": ["main"],
   "permissions": [
     "core:default",
-    "dialog:default",
+    "dialog:allow-open",
     "store:default",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "name": "binaries/wowplay", "sidecar": true, "args": true }]
+    }
   ]
 }

@@ -94,8 +94,6 @@ jobs:
   build-gui:
     runs-on: macos-latest
     needs: create-release
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,20 +105,40 @@ jobs:
 
       - uses: oven-sh/setup-bun@v1
 
-      - name: Install dependencies
+      - name: Install JS dependencies
         run: bun install
 
-      - uses: tauri-apps/tauri-action@v0.6
+      - name: Build wowplay sidecar
+        run: |
+          cargo build --release --target aarch64-apple-darwin -p wowplay
+          mkdir -p packages/gui/binaries
+          cp target/aarch64-apple-darwin/release/wowplay packages/gui/binaries/wowplay-aarch64-apple-darwin
+
+      - name: Import signing certificate
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Build GUI
+        env:
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)"
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        with:
-          projectPath: packages/gui
-          tauriScript: ${{ github.workspace }}/node_modules/.bin/tauri
-          tagName: ${{ github.ref_name }}
-          args: --target aarch64-apple-darwin
+        run: |
+          cd packages/gui
+          bunx tauri build --target aarch64-apple-darwin
+
+      - name: Upload DMG to release
+        run: |
+          DMG=$(find target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          gh release upload "${{ github.ref_name }}" "$DMG" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

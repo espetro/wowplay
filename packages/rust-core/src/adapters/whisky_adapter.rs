@@ -16,21 +16,31 @@ const MOONSHINE_APP_PATHS: &[&str] = &[
     "~/Applications/Moonshine.app",
 ];
 const WHISKY_CMD_REL: &str = "Contents/Resources/WhiskyCmd";
-const WINE_BIN_DIR: &str = "Libraries/Wine/bin";
+/// Candidate Wine bin dirs relative to `~/Library/Application Support/com.isaacmarovitz.Whisky`.
+/// Probed in order; first with an actual `wine64` binary wins.
+const WINE_BIN_DIRS: &[&str] = &[
+    "Libraries/Wine/bin", // primary (current Whisky layout)
+    "Wine/bin",           // alternate flat layout seen in some builds
+];
 
 /// Whisky-specific [`RunnerPort`] implementation.
 pub struct WhiskyAdapter {
     bundle: PathBuf,
+    /// Path to the Wine `bin/` directory (e.g. `…/Libraries/Wine/bin`).
     wine_bin: PathBuf,
 }
 
 impl WhiskyAdapter {
     /// Create a new adapter from a Whisky.app bundle path.
     pub fn new(bundle: PathBuf) -> Self {
-        let wine_bin = home_dir()
+        let support_base = home_dir()
             .map(|h| h.join("Library/Application Support/com.isaacmarovitz.Whisky"))
-            .unwrap_or_default()
-            .join(WINE_BIN_DIR);
+            .unwrap_or_default();
+        let wine_bin = WINE_BIN_DIRS
+            .iter()
+            .map(|d| support_base.join(d))
+            .find(|p| p.join("wine64").exists())
+            .unwrap_or_else(|| support_base.join(WINE_BIN_DIRS[0]));
         Self { bundle, wine_bin }
     }
 
@@ -130,8 +140,9 @@ impl RunnerPort for WhiskyAdapter {
         let wine64 = self.wine64_path();
         if !wine64.exists() {
             return Err(LaunchError::SetupFailed(format!(
-                "wine64 not found at {} — reinstall Whisky",
-                wine64.display()
+                "wine64 not found at {} (also checked alternate layouts: {}) — reinstall Whisky",
+                wine64.display(),
+                WINE_BIN_DIRS.join(", ")
             )));
         }
         Ok(wine64)

@@ -5,6 +5,7 @@ export interface AppConfig {
   runner: string | null;
   wow_dir: string | null;
   show_alerts: boolean;
+  bottle: string | null;
 }
 
 export interface RunnerStatus {
@@ -52,8 +53,8 @@ export const setConfig = (config: AppConfig) => invokeResult<void>('set_config',
 export const checkRunners = () => invokeResult<RunnerStatus[]>('check_runners');
 export const runSetup = (wowDir: string, runner: string) =>
   invokeResult<SetupResult>('run_setup', { wowDir, runner });
-export const launchWow = (wowDir: string, runner: string) =>
-  invokeResult<number>('launch_wow', { wowDir, runner });
+export const launchWow = (wowDir: string, runner: string, bottle: string) =>
+  invokeResult<number>('launch_wow', { wowDir, runner, bottle });
 export const validateWowDir = (path: string) =>
   invokeResult<ValidationResult>('validate_wow_dir', { path });
 export const resetConfig = () => invokeResult<void>('reset_config');

@@ -15,7 +15,7 @@ interface AppStore {
 }
 
 export const [store, setStore] = createStore<AppStore>({
-  config: { runner: null, wow_dir: null, show_alerts: false },
+  config: { runner: null, wow_dir: null, show_alerts: false, bottle: 'Win10' },
   runners: [],
   alerts: [],
   isLoading: false,

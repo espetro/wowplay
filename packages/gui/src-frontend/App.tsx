@@ -13,6 +13,7 @@ import {
 import { store, setStore, isSetupComplete, visibleAlerts } from './stores/app';
 import { RunnerSelect } from './components/RunnerSelect';
 import { GameFolderPicker } from './components/GameFolderPicker';
+import { BottleInput } from './components/BottleInput';
 import { AlertCallout } from './components/AlertCallout';
 import { OptionsMenu } from './components/OptionsMenu';
 import { ActionButton } from './components/ActionButton';
@@ -103,10 +104,23 @@ export default function App() {
     }
   }
 
+  async function handleBottleChange(value: string) {
+    setStore('config', 'bottle', value);
+    const result = await setConfig(store.config);
+    result.match(
+      () => {},
+      (err) => setStore('alerts', [{ id: 'save-err', type: 'error', message: err.message }])
+    );
+  }
+
   async function handleRun() {
     setStore('isLoading', true);
     try {
-      const result = await launchWow(store.config.wow_dir!, store.config.runner!);
+      const result = await launchWow(
+        store.config.wow_dir!,
+        store.config.runner!,
+        store.config.bottle ?? 'Win10',
+      );
       result.match(
         (pid) => {
           setStore('alerts', [
@@ -132,7 +146,7 @@ export default function App() {
         if (confirmed) {
           resetConfig().match(
             () => {
-              setStore('config', { runner: null, wow_dir: null, show_alerts: false });
+              setStore('config', { runner: null, wow_dir: null, show_alerts: false, bottle: 'Win10' });
               setStore('alerts', []);
               setValidation({ valid: false, message: '', severity: 'info' });
             },
@@ -183,6 +197,10 @@ export default function App() {
           onChange={handleFolderChange}
           onError={handleFolderError}
         />
+        <BottleInput
+          value={store.config.bottle ?? 'Win10'}
+          onChange={handleBottleChange}
+        />
       </div>
 
       <Show when={visibleAlerts().length > 0}>
@@ -216,7 +234,7 @@ export default function App() {
           !validation().valid
         }
         loading={store.isLoading}
-        onClick={isSetupComplete() ? handleRun : handleSetup}
+        onClick={() => (isSetupComplete() ? handleRun() : handleSetup())}
       />
     </div>
   );

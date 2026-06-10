@@ -1,0 +1,33 @@
+name = "setup-flow"
+
+[[steps]]
+action = "snapshot"
+args = { interactive = true }
+expect = "Setup button is visible"
+
+[[steps]]
+action = "click"
+selector = "[data-testid='runner-select-trigger']"
+
+[[steps]]
+action = "click"
+selector = "[data-value='crossover']"
+
+[[steps]]
+action = "ipc"
+command = "validate_wow_dir"
+args = { path = "/tmp/test-wow" }
+
+[[steps]]
+action = "click"
+selector = "[data-testid='action-btn']"
+
+[[steps]]
+action = "wait"
+selector = "[data-testid='alert-info']"
+args = { text = "Setup complete" }
+
+[[steps]]
+action = "assert"
+selector = "[data-testid='action-btn']"
+args = { text = "Run" }

@@ -1,0 +1,16 @@
+name = "alerts"
+
+[[steps]]
+action = "ipc"
+command = "validate_wow_dir"
+args = { path = "/tmp/empty-dir" }
+
+[[steps]]
+action = "assert"
+selector = "[data-testid='alert-error']"
+args = { visible = true }
+
+[[steps]]
+action = "assert"
+selector = "[data-testid='alert-info']"
+args = { visible = false }

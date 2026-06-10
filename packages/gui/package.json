@@ -1,0 +1,45 @@
+{
+  "name": "@wow-silicon/gui",
+  "private": true,
+  "version": "0.3.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "sidecar": "bash scripts/build-sidecar.sh",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "vitest",
+    "test:e2e": "tauri-pilot run e2e/",
+    "test:gauge": "cd gauge-tests && gauge run specs/",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "validate": "bun run scripts/validate.ts"
+  },
+  "dependencies": {
+    "@ark-ui/solid": "^5.0.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-store": "^2.0.0",
+    "lucide-solid": "^1.1.0",
+    "neverthrow": "^8.2.0",
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^22.0.0",
+    "oxfmt": "^0.1.0",
+    "oxlint": "^0.15.0",
+    "tailwindcss": "^4.0.0",
+    "tasuku": "^2.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^3.0.0"
+  }
+}

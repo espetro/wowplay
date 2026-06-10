@@ -6,10 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 For per-package changes, see the individual CHANGELOGs:
+- [`packages/gui/CHANGELOG.md`](packages/gui/CHANGELOG.md)
 - [`packages/rust-core/CHANGELOG.md`](packages/rust-core/CHANGELOG.md)
 - [`packages/cli/CHANGELOG.md`](packages/cli/CHANGELOG.md)
 - [`packages/integration/CHANGELOG.md`](packages/integration/CHANGELOG.md)
 - [`tools/profiler/CHANGELOG.md`](tools/profiler/CHANGELOG.md)
+
+## [0.4.0] - 2026-06-10
+
+### Added
+- GUI app (Tauri-based) with sidecar launcher architecture — `WoW on Silicon.app` ships alongside the CLI
+- `BottleInput` component wired to the bottle parameter in the GUI
+- Persistent `AppState` hydration from the Tauri store on GUI startup
+- Gauge E2E tests for the GUI with `data-testid` attributes
+- `--disable-lib-silicon` flag for `wowplay` CLI to make `libSiliconPatch.dll` optional
+
+### Fixed
+- CrossOver runner option no longer incorrectly prefixed with "Wine"
+
+### Changed
+- GUI switches from direct library calls to a sidecar launcher process
+- `rust-core` setup, diagnostics, and resources split into focused modules; CLI wired to them directly
+- Release workflow updated to use `tauri-apps/tauri-action` for signed, notarized GUI builds
 
 ## [0.3.1] - 2026-06-09
 

@@ -8,9 +8,12 @@
 //! winerosetta + CrossOver.
 
 pub mod adapters;
+pub mod diagnostics;
 pub mod integration;
 pub mod ports;
+pub mod resources;
 pub mod runner_registry;
+pub mod setup;
 
 pub use adapters::crossover_adapter::CrossOverAdapter;
 pub use adapters::errors::{AdapterError, LaunchError, TranslationError};

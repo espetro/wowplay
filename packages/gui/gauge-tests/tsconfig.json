@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig/base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "types": ["node"],
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["tests/**/*.ts", "specs/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

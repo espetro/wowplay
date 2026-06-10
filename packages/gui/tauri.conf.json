@@ -1,0 +1,29 @@
+{
+  "productName": "WoW on Silicon",
+  "identifier": "com.wowsilicon.gui",
+  "version": "0.4.0",
+  "build": {
+    "frontendDist": "dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "bun run --sequential sidecar dev",
+    "beforeBuildCommand": "bun run --sequential sidecar build"
+  },
+  "app": {
+    "windows": [{
+      "title": "WoW on Silicon",
+      "width": 480,
+      "height": 580,
+      "resizable": false,
+      "center": true,
+      "decorations": true
+    }]
+  },
+  "bundle": {
+    "externalBin": ["binaries/wowplay"],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "./Entitlements.plist"
+    }
+  },
+  "plugins": {}
+}

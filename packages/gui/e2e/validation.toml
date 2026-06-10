@@ -1,0 +1,38 @@
+name = "browse-flow"
+
+[[steps]]
+action = "snapshot"
+args = { interactive = true }
+
+[[steps]]
+action = "click"
+selector = "[data-testid='runner-select-trigger']"
+
+[[steps]]
+action = "click"
+selector = "[data-value='crossover']"
+
+[[steps]]
+action = "ipc"
+command = "validate_wow_dir"
+args = { path = "/tmp/test-wow" }
+
+[[steps]]
+action = "assert"
+selector = "[data-testid='action-btn']"
+args = { disabled = false }
+
+[[steps]]
+action = "ipc"
+command = "validate_wow_dir"
+args = { path = "/tmp/empty-dir" }
+
+[[steps]]
+action = "wait"
+selector = "[data-testid='alert-error']"
+args = { text = "WoW.exe not found" }
+
+[[steps]]
+action = "assert"
+selector = "[data-testid='action-btn']"
+args = { disabled = true }

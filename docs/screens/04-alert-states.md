@@ -17,7 +17,7 @@ When `Show alerts` is disabled and no errors exist:
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▼] │     │
+│   │ CrossOver                 [▼] │     │
 │   └───────────────────────────────┘     │
 │                                         │
 │   GAME FOLDER                           │
@@ -49,7 +49,7 @@ When `Show alerts` is enabled:
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▼] │     │
+│   │ CrossOver                 [▼] │     │
 │   └───────────────────────────────┘     │
 │                                         │
 │   GAME FOLDER                           │
@@ -87,7 +87,7 @@ Warnings are always shown regardless of `Show alerts` setting:
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▼] │     │
+│   │ CrossOver                 [▼] │     │
 │   └───────────────────────────────┘     │
 │                                         │
 │   GAME FOLDER                           │
@@ -125,7 +125,7 @@ Errors are always shown and may disable the action button:
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▼] │     │
+│   │ CrossOver                 [▼] │     │
 │   └───────────────────────────────┘     │
 │                                         │
 │   GAME FOLDER                           │
@@ -152,15 +152,18 @@ Errors are always shown and may disable the action button:
 
 Use `lucide-icons`.
 
-| Type | Icon | Color | Visibility |
-|------|------|-------|------------|
-| Info | ⓘ | Blue/Gray | Only when `Show alerts` is enabled |
-| Warning | ⚠ | Yellow/Amber | Always visible |
-| Error | ✖ | Red | Always visible, may disable action button |
+
+| Type    | Icon | Color        | Visibility                                |
+| ------- | ---- | ------------ | ----------------------------------------- |
+| Info    | ⓘ    | Blue/Gray    | Only when `Show alerts` is enabled        |
+| Warning | ⚠    | Yellow/Amber | Always visible                            |
+| Error   | ✖    | Red          | Always visible, may disable action button |
+
 
 ## Behavior
 
 - **Dismissal**: Info alerts can be dismissed with an X button (optional)
 - **Auto-hide**: Info alerts may auto-hide after 5 seconds (optional)
 - **Multiple alerts**: Stack vertically with 8px spacing between them
-- **Priority**: Error > Warning > Info (sorted by severity)
+- **Priority**: Error &gt; Warning &gt; Info (sorted by severity)
+

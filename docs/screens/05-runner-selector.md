@@ -26,10 +26,10 @@ The Runner dropdown in its expanded state showing available options.
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▲] │     │
+│   │ CrossOver                 [▲] │     │
 │   └───────────────────────────────┘     │
 │   ┌───────────────────────────────┐     │
-│   │ ☐ Wine (CrossOver)            │     │
+│   │ ☐ CrossOver                   │     │
 │   │ ☐ Whisky                      │     │
 │   │ ☐ Moonshine                   │     │
 │   │ ─────────────────────────     │     │
@@ -41,12 +41,14 @@ The Runner dropdown in its expanded state showing available options.
 
 ## Runner Options
 
-| Option | Description |
-|--------|-------------|
-| Wine (CrossOver) | CrossOver commercial Wine wrapper |
-| Whisky | Native macOS Wine wrapper app; legacy |
-| Moonshine | Modern (2026) Whisky fork |
-| Custom... | User-defined Wine/VM path |
+
+| Option           | Description                           |
+| ---------------- | ------------------------------------- |
+| CrossOver        | CrossOver commercial Wine wrapper     |
+| Whisky           | Native macOS Wine wrapper app; legacy |
+| Moonshine        | Modern (2026) Whisky fork             |
+| Custom...        | User-defined Wine/VM path             |
+
 
 ## Behavior
 
@@ -54,3 +56,4 @@ The Runner dropdown in its expanded state showing available options.
 - **Custom**: Opens file picker to select custom Wine binary
 - **Keyboard navigation**: Arrow keys + Enter to select
 - **Dismiss**: Click outside or press Escape to close without selection
+

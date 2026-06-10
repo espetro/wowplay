@@ -4887,7 +4887,7 @@ dependencies = [
 
 [[package]]
 name = "wow-silicon-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "libloading 0.8.9",
  "serde",
@@ -4897,14 +4897,14 @@ dependencies = [
 
 [[package]]
 name = "wow-silicon-integration"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "wow-silicon-core",
 ]
 
 [[package]]
 name = "wowplay"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "clap",
  "wow-silicon-core",
@@ -4912,7 +4912,7 @@ dependencies = [
 
 [[package]]
 name = "wowplay-gui"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",

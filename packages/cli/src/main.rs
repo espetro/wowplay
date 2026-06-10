@@ -3,13 +3,12 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
-use wow_silicon_core::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
-use wow_silicon_core::integration::crossover::{
-    apply_game_patch, create_wineloader2, find_crossover, find_wowsilicon,
-    is_rosetta_service_running, wineloader2_path, wowsilicon_resources,
-};
+use wow_silicon_core::adapters::whisky_adapter::WhiskyAdapter;
+use wow_silicon_core::diagnostics::run_checklist;
 use wow_silicon_core::integration::wow_launcher::WowLauncher;
+use wow_silicon_core::resources::resolve_patching_dir;
 use wow_silicon_core::runner_registry::RunnerRegistry;
+use wow_silicon_core::setup::SetupOrchestrator;
 
 #[derive(Parser)]
 #[command(name = "wowplay", about = "Run WoW 3.3.5a on Apple Silicon")]
@@ -91,127 +90,66 @@ fn die(msg: &str) -> ! {
     process::exit(1);
 }
 
-fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
-    if let Some(p) = explicit {
-        return Ok(p);
-    }
-
-    // 1. Previously staged by wowplay setup
-    let installed = PathBuf::from(std::env::var("HOME").unwrap_or_default())
-        .join(".local/share/wowplay/patching");
-    if installed.exists() {
-        return Ok(installed);
-    }
-
-    // 2. Bundled next to the binary (release zip layout)
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let bundled = dir.join("patching");
-            if bundled.exists() {
-                return Ok(bundled);
-            }
-        }
-    }
-
-    // 3. WoWSilicon.app (legacy / developer path)
-    if let Ok(app) = find_wowsilicon() {
-        return Ok(wowsilicon_resources(&app));
-    }
-
-    Err("patching resources not found — download the release zip and run wowplay setup".into())
-}
-
-fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| format!("mkdir {}: {e}", dst.display()))?;
-    for entry in fs::read_dir(src).map_err(|e| format!("read_dir {}: {e}", src.display()))? {
-        let entry = entry.map_err(|e| format!("dir entry: {e}"))?;
-        let ty = entry.file_type().map_err(|e| format!("file type: {e}"))?;
-        let dst_path = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_recursive(&entry.path(), &dst_path)?;
-        } else {
-            fs::copy(entry.path(), &dst_path)
-                .map_err(|e| format!("copy {}: {e}", entry.path().display()))?;
-        }
-    }
-    Ok(())
-}
-
 fn print_runner_table() {
     info("Checking available runners…");
-    match find_crossover() {
-        Ok(p) => ok(&format!("CrossOver  ✅  {}", p.display())),
-        Err(_) => warn("CrossOver  ❌  not found → https://www.codeweavers.com/crossover"),
-    }
-    match WhiskyAdapter::find_bundle() {
-        Ok(p) => ok(&format!("Whisky     ✅  {}", p.display())),
-        Err(_) => warn("Whisky     ❌  not found → https://github.com/Whisky-App/Whisky"),
-    }
-    match find_moonshine() {
-        Ok(p) => ok(&format!("Moonshine  ✅  {}", p.display())),
-        Err(_) => warn("Moonshine  ❌  not found → https://github.com/ybmeng/moonshine"),
+    for check in SetupOrchestrator::check_all_runners() {
+        if check.available {
+            ok(&format!("{}  ✅  {:?}", check.display_name, check.path));
+        } else {
+            warn(&format!("{}  ❌  not found", check.display_name));
+        }
     }
 }
 
 fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
-    info("Checking CrossOver…");
-    let cx_opt = match find_crossover() {
-        Ok(p) => {
-            ok(&format!("CrossOver: {}", p.display()));
-            Some(p)
-        }
+    let report = match run_checklist(
+        wow_dir.map(|p| p.as_path()),
+        patching_dir.cloned(),
+    ) {
+        Ok(r) => r,
         Err(e) => {
-            warn(&format!("CrossOver: {e}"));
-            None
+            die(&format!("diagnostics failed: {e}"));
         }
     };
 
+    info("Checking CrossOver…");
+    if let Some(ref p) = report.crossover {
+        ok(&format!("CrossOver: {p}"));
+    } else {
+        warn("CrossOver: not found");
+    }
+
     info("Checking Whisky…");
-    match WhiskyAdapter::find_bundle() {
-        Ok(p) => {
-            ok(&format!("Whisky: {}", p.display()));
-        }
-        Err(e) => {
-            warn(&format!("Whisky: {e}"));
-        }
+    if let Some(ref p) = report.whisky {
+        ok(&format!("Whisky: {p}"));
+    } else {
+        warn(&format!("Whisky: not found"));
     }
 
     info("Checking patching resources…");
-    match resolve_patching_dir(patching_dir.cloned()) {
-        Ok(res) => {
-            if res.exists() {
-                ok(&format!("Patching dir: {}", res.display()));
-            } else {
-                warn(&format!("Patching dir not found: {}", res.display()));
-            }
-        }
-        Err(e) => warn(&format!(
-            "Patching dir: {e} — pass --patching-dir or install WoWSilicon.app"
-        )),
+    if let Some(ref p) = report.patching_dir {
+        ok(&format!("Patching dir: {p}"));
+    } else {
+        warn("Patching dir: not found");
     }
 
     info("Checking rosettax87 service…");
-    if is_rosetta_service_running() {
+    if report.rosetta_running {
         ok("rosettax87 service running");
     } else {
         warn("rosettax87 not running — will start on launch");
     }
 
-    if let Some(ref cx) = cx_opt {
-        let wl2 = wineloader2_path(cx);
+    if let Some(ref wl2) = report.wineloader2 {
         info("Checking wineloader2…");
-        if wl2.exists() {
-            ok(&format!("wineloader2: {}", wl2.display()));
-        } else {
-            warn("wineloader2 not staged — run `wowplay setup --wow-dir <dir>`");
-        }
+        ok(&format!("wineloader2: {wl2}"));
     }
 
-    if let Some(dir) = wow_dir {
+    if let (Some(patched), Some(found)) = (report.divxdecoder_patched, report.divxdecoder_found) {
         info("Checking DivxDecoder…");
-        if dir.join("DivxDecoder.dll.bak").exists() {
+        if patched {
             ok("DivxDecoder.dll patched");
-        } else if dir.join("DivxDecoder.dll").exists() {
+        } else if found {
             warn("DivxDecoder.dll not yet patched — will patch on first launch");
         } else {
             warn("DivxDecoder.dll not found — reinstall WoW client if launch fails");
@@ -219,13 +157,9 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
     }
 
     info("Available runners:");
-    for r in RunnerRegistry::available_runners() {
-        let status = if RunnerRegistry::resolve(r).is_ok() {
-            "available"
-        } else {
-            "not found"
-        };
-        info(&format!("  {r}: {status}"));
+    for runner in report.runners {
+        let status = if runner.available { "available" } else { "not found" };
+        info(&format!("  {}: {status}", runner.name));
     }
 }
 
@@ -304,43 +238,18 @@ fn main() {
             patching_dir,
             disable_lib_silicon,
         } => {
-            // Stage bundled resources to ~/.local/share/wowplay/patching
-            if let Ok(exe) = std::env::current_exe() {
-                if let Some(dir) = exe.parent() {
-                    let bundled = dir.join("patching");
-                    let staged = PathBuf::from(std::env::var("HOME").unwrap_or_default())
-                        .join(".local/share/wowplay/patching");
-                    if bundled.exists() && !staged.exists() {
-                        info("Staging patching resources…");
-                        copy_dir_recursive(&bundled, &staged)
-                            .unwrap_or_else(|e| die(&format!("staging failed: {e}")));
-                        ok(&format!(
-                            "patching resources staged to {}",
-                            staged.display()
-                        ));
-                    }
-                }
-            }
-
             print_runner_table();
 
-            info("Setting up wineloader2…");
-            match find_crossover() {
-                Ok(crossover) => {
-                    create_wineloader2(&crossover).unwrap_or_else(|e| die(&e.to_string()));
-                    ok("wineloader2 staged");
-                }
-                Err(e) => {
-                    warn(&format!("wineloader2 skipped (CrossOver not found: {e})"));
-                }
-            }
+            let messages = SetupOrchestrator::run(
+                &wow_dir,
+                patching_dir,
+                !disable_lib_silicon,
+            )
+            .unwrap_or_else(|e| die(&e.to_string()));
 
-            info("Applying game patch…");
-            let resources =
-                resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            apply_game_patch(&wow_dir, &resources, !disable_lib_silicon)
-                .unwrap_or_else(|e| die(&e.to_string()));
-            ok("game patch applied");
+            for msg in messages {
+                ok(&msg);
+            }
         }
 
         Cmd::Run {
@@ -366,10 +275,12 @@ fn main() {
                     if let Some(bundle) = whisky_bundle {
                         std::sync::Arc::new(WhiskyAdapter::new(bundle))
                     } else {
-                        RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
+                        RunnerRegistry::resolve(&runner)
+                            .unwrap_or_else(|e| die(&e.to_string()))
                     }
                 } else {
-                    RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
+                    RunnerRegistry::resolve(&runner)
+                        .unwrap_or_else(|e| die(&e.to_string()))
                 };
             let mut launcher = WowLauncher::new(runner, resources, &bottle);
             if sudo {

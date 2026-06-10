@@ -1,6 +1,6 @@
 # These are supported funding model platforms
 
-polar: joaquin-terrasa # Replace with a single Polar username
+# polars: Replace with a single Polar username
 # github: # Replace with up to 4 GitHub Sponsors-enabled usernames e.g., [user1, user2]
 # patreon: # Replace with a single Patreon username
 # open_collective: # Replace with a single Open Collective username
@@ -12,4 +12,6 @@ polar: joaquin-terrasa # Replace with a single Polar username
 # lfx_crowdfunding: # Replace with a single LFX Crowdfunding project-name e.g., cloud-foundry
 # buy_me_a_coffee: # Replace with a single Buy Me a Coffee username
 # thanks_dev: # Replace with a single thanks.dev username
-# custom: # Replace with up to 4 custom sponsorship URLs e.g., ['link1', 'link2']
+
+# Replace with up to 4 custom sponsorship URLs e.g., ['link1', 'link2']
+custom: ['https://buy.polar.sh/polar_cl_Mv1gdlG7bw3I70EC9IHtfeSHJj4PEKvA7JAUz23CFhj'] 

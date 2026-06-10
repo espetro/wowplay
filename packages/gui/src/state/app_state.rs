@@ -35,3 +35,12 @@ impl Default for AppState {
         }
     }
 }
+
+impl AppState {
+    pub fn from_config(config: AppConfig) -> Self {
+        Self {
+            config: RwLock::new(config),
+            wow_process: RwLock::new(None),
+        }
+    }
+}

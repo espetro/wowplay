@@ -2,14 +2,27 @@ mod commands;
 mod error;
 mod state;
 
-use state::app_state::AppState;
+use state::app_state::{AppConfig, AppState};
+use tauri::Manager;
+use tauri_plugin_store::StoreExt;
 
 fn main() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(AppState::default())
+        .setup(|app| {
+            let config = app
+                .store_builder("config.json")
+                .build()
+                .ok()
+                .and_then(|store| store.get("config"))
+                .and_then(|val| serde_json::from_value::<AppConfig>(val).ok())
+                .unwrap_or_default();
+
+            app.manage(AppState::from_config(config));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::config::get_config,
             commands::config::set_config,

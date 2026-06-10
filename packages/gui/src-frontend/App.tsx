@@ -1,6 +1,7 @@
-import { onMount, createSignal, For, Show } from 'solid-js';
-import { confirm } from '@tauri-apps/plugin-dialog';
-import { ResultAsync } from 'neverthrow';
+import { onMount, createSignal, For, Show } from "solid-js"
+import { confirm } from "@tauri-apps/plugin-dialog"
+import { open } from "@tauri-apps/plugin-shell"
+import { ResultAsync } from "neverthrow"
 import {
   getConfig,
   checkRunners,
@@ -9,163 +10,217 @@ import {
   launchWow,
   resetConfig,
   setConfig,
-} from './lib/tauri';
-import { store, setStore, isSetupComplete, visibleAlerts } from './stores/app';
-import { RunnerSelect } from './components/RunnerSelect';
-import { GameFolderPicker } from './components/GameFolderPicker';
-import { BottleInput } from './components/BottleInput';
-import { AlertCallout } from './components/AlertCallout';
-import { OptionsMenu } from './components/OptionsMenu';
-import { ActionButton } from './components/ActionButton';
+} from "./lib/tauri"
+import { store, setStore, isSetupComplete, visibleAlerts } from "./stores/app"
+import { RunnerSelect } from "./components/RunnerSelect"
+import { GameFolderPicker } from "./components/GameFolderPicker"
+import { BottleInput } from "./components/BottleInput"
+import { AlertCallout } from "./components/AlertCallout"
+import { OptionsMenu } from "./components/OptionsMenu"
+import { ActionButton } from "./components/ActionButton"
 
 export default function App() {
   const [validation, setValidation] = createSignal({
     valid: false,
-    message: '',
-    severity: 'info',
-  });
-  const [isReady, setIsReady] = createSignal(false);
+    message: "",
+    severity: "info",
+  })
+  const [isReady, setIsReady] = createSignal(false)
 
   onMount(async () => {
-    const configResult = await getConfig();
+    const configResult = await getConfig()
     configResult.match(
       async (config) => {
-        setStore('config', config);
+        setStore("config", config)
         if (config.wow_dir) {
-          const validResult = await validateWowDir(config.wow_dir);
+          const validResult = await validateWowDir(config.wow_dir)
           validResult.match(
             (result) => setValidation(result),
-            (err) => setStore('alerts', [{ id: 'val-err', type: 'error', message: err.message }])
-          );
+            (err) =>
+              setStore("alerts", [
+                { id: "val-err", type: "error", message: err.message },
+              ]),
+          )
         }
       },
-      (err) => setStore('alerts', [{ id: 'cfg-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "cfg-err", type: "error", message: err.message },
+        ]),
+    )
 
-    const runnersResult = await checkRunners();
+    const runnersResult = await checkRunners()
     runnersResult.match(
-      (runners) => setStore('runners', runners),
-      (err) => setStore('alerts', [{ id: 'runner-err', type: 'error', message: err.message }])
-    );
+      (runners) => setStore("runners", runners),
+      (err) =>
+        setStore("alerts", [
+          { id: "runner-err", type: "error", message: err.message },
+        ]),
+    )
 
-    setIsReady(true);
-  });
+    setIsReady(true)
+  })
 
   async function handleRunnerChange(runner: string) {
-    setStore('config', 'runner', runner);
-    const result = await setConfig(store.config);
+    setStore("config", "runner", runner)
+    const result = await setConfig(store.config)
     result.match(
       () => {},
-      (err) => setStore('alerts', [{ id: 'save-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "save-err", type: "error", message: err.message },
+        ]),
+    )
   }
 
   async function handleFolderChange(path: string) {
-    setStore('config', 'wow_dir', path);
+    setStore("config", "wow_dir", path)
     const [saveResult, validResult] = await Promise.all([
       setConfig(store.config),
       validateWowDir(path),
-    ]);
+    ])
     saveResult.match(
       () => {},
-      (err) => setStore('alerts', [{ id: 'save-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "save-err", type: "error", message: err.message },
+        ]),
+    )
     validResult.match(
       (result) => {
-        setValidation(result);
+        setValidation(result)
         if (!result.valid) {
-          setStore('alerts', [{ id: 'val-err', type: 'error', message: result.message }]);
+          setStore("alerts", [
+            { id: "val-err", type: "error", message: result.message },
+          ])
         } else {
-          setStore('alerts', []);
+          setStore("alerts", [])
         }
       },
-      (err) => setStore('alerts', [{ id: 'val-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "val-err", type: "error", message: err.message },
+        ]),
+    )
   }
 
   function handleFolderError(msg: string) {
-    setStore('alerts', [{ id: 'browse-err', type: 'error', message: msg }]);
+    setStore("alerts", [{ id: "browse-err", type: "error", message: msg }])
   }
 
   async function handleSetup() {
-    setStore('isLoading', true);
+    setStore("isLoading", true)
     try {
-      const result = await runSetup(store.config.wow_dir!, store.config.runner!);
+      const result = await runSetup(store.config.wow_dir!, store.config.runner!)
       result.match(
         () => {
-          setStore('alerts', [{ id: 'setup-ok', type: 'info', message: 'Setup complete' }]);
+          setStore("alerts", [
+            { id: "setup-ok", type: "info", message: "Setup complete" },
+          ])
         },
         (err) => {
-          setStore('alerts', [{ id: 'setup-err', type: 'error', message: err.message }]);
-        }
-      );
+          setStore("alerts", [
+            { id: "setup-err", type: "error", message: err.message },
+          ])
+        },
+      )
     } finally {
-      setStore('isLoading', false);
+      setStore("isLoading", false)
     }
   }
 
   async function handleBottleChange(value: string) {
-    setStore('config', 'bottle', value);
-    const result = await setConfig(store.config);
+    setStore("config", "bottle", value)
+    const result = await setConfig(store.config)
     result.match(
       () => {},
-      (err) => setStore('alerts', [{ id: 'save-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "save-err", type: "error", message: err.message },
+        ]),
+    )
   }
 
   async function handleRun() {
-    setStore('isLoading', true);
+    setStore("isLoading", true)
     try {
       const result = await launchWow(
         store.config.wow_dir!,
         store.config.runner!,
-        store.config.bottle ?? 'Win10',
-      );
+        store.config.bottle ?? "Win10",
+      )
       result.match(
         (pid) => {
-          setStore('alerts', [
-            { id: 'run-ok', type: 'info', message: `WoW launched (PID: ${pid})` },
-          ]);
+          setStore("alerts", [
+            {
+              id: "run-ok",
+              type: "info",
+              message: `WoW launched (PID: ${pid})`,
+            },
+          ])
         },
         (err) => {
-          setStore('alerts', [{ id: 'run-err', type: 'error', message: err.message }]);
-        }
-      );
+          setStore("alerts", [
+            { id: "run-err", type: "error", message: err.message },
+          ])
+        },
+      )
     } finally {
-      setStore('isLoading', false);
+      setStore("isLoading", false)
     }
   }
 
   async function handleReset() {
     const confirmResult = await ResultAsync.fromPromise(
-      confirm('Reset all configuration?', 'This will clear your runner and game folder settings.'),
+      confirm(
+        "Reset all configuration?",
+        "This will clear your runner and game folder settings.",
+      ),
       (e) => String(e),
-    );
+    )
     confirmResult.match(
       (confirmed) => {
         if (confirmed) {
           resetConfig().match(
             () => {
-              setStore('config', { runner: null, wow_dir: null, show_alerts: false, bottle: 'Win10' });
-              setStore('alerts', []);
-              setValidation({ valid: false, message: '', severity: 'info' });
+              setStore("config", {
+                runner: null,
+                wow_dir: null,
+                show_alerts: true,
+                bottle: "Win10",
+              })
+              setStore("alerts", [])
+              setValidation({ valid: false, message: "", severity: "info" })
             },
-            (err) => setStore('alerts', [{ id: 'reset-err', type: 'error', message: err.message }])
-          );
+            (err) =>
+              setStore("alerts", [
+                { id: "reset-err", type: "error", message: err.message },
+              ]),
+          )
         }
       },
-      (err) => setStore('alerts', [{ id: 'confirm-err', type: 'error', message: err }]),
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "confirm-err", type: "error", message: err },
+        ]),
+    )
   }
 
   async function handleToggleAlerts() {
-    const newValue = !store.config.show_alerts;
-    setStore('config', 'show_alerts', newValue);
-    const result = await setConfig(store.config);
+    const newValue = !store.config.show_alerts
+    setStore("config", "show_alerts", newValue)
+    const result = await setConfig(store.config)
     result.match(
       () => {},
-      (err) => setStore('alerts', [{ id: 'save-err', type: 'error', message: err.message }])
-    );
+      (err) =>
+        setStore("alerts", [
+          { id: "save-err", type: "error", message: err.message },
+        ]),
+    )
+  }
+
+  function handleFeedback() {
+    open("https://tally.so/r/9q4LJQ")
   }
 
   return (
@@ -180,6 +235,7 @@ export default function App() {
         <OptionsMenu
           showAlerts={store.config.show_alerts}
           onToggleAlerts={handleToggleAlerts}
+          onFeedback={handleFeedback}
           onReset={handleReset}
         />
       </div>
@@ -198,7 +254,7 @@ export default function App() {
           onError={handleFolderError}
         />
         <BottleInput
-          value={store.config.bottle ?? 'Win10'}
+          value={store.config.bottle ?? "Win10"}
           onChange={handleBottleChange}
         />
       </div>
@@ -211,8 +267,8 @@ export default function App() {
                 type={alert.type}
                 message={alert.message}
                 onDismiss={
-                  alert.type === 'info'
-                    ? () => setStore('alerts', [])
+                  alert.type === "info"
+                    ? () => setStore("alerts", [])
                     : undefined
                 }
               />
@@ -226,7 +282,7 @@ export default function App() {
       <hr class="border-gray-200 shrink-0" />
 
       <ActionButton
-        variant={isSetupComplete() ? 'run' : 'setup'}
+        variant={isSetupComplete() ? "run" : "setup"}
         disabled={
           !isReady() ||
           !store.config.runner ||
@@ -237,5 +293,5 @@ export default function App() {
         onClick={() => (isSetupComplete() ? handleRun() : handleSetup())}
       />
     </div>
-  );
+  )
 }

@@ -12,11 +12,15 @@ pub struct AppConfig {
     /// Path to the WoW 3.3.5a game directory.
     pub wow_dir: Option<PathBuf>,
     /// Whether to show info-level alerts in the UI.
-    #[serde(default)]
+    #[serde(default = "default_show_alerts")]
     pub show_alerts: bool,
     /// Wine/CrossOver bottle name (e.g. "Win10").
     #[serde(default)]
     pub bottle: Option<String>,
+}
+
+fn default_show_alerts() -> bool {
+    true
 }
 
 /// Shared mutable state across Tauri commands.

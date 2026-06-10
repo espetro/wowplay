@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "store:default",
+    "shell:default"
+  ]
+}

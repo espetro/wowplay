@@ -1,0 +1,16 @@
+{
+  "name": "@wow-silicon/root",
+  "private": true,
+  "version": "0.3.1",
+  "workspaces": [
+    "packages/*",
+    "packages/gui/gauge-tests"
+  ],
+  "scripts": {
+    "build": "cd packages/gui && bun run build",
+    "dev": "cd packages/gui && bun run tauri:dev",
+    "test": "cargo test --workspace && cd packages/gui && bun run test",
+    "test:e2e": "cd packages/gui && bun run test:e2e",
+    "test:gauge": "cd packages/gui && bun run test:gauge"
+  }
+}

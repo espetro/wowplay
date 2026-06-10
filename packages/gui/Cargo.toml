@@ -1,0 +1,26 @@
+[package]
+name = "wowplay-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+wow-silicon-core = { path = "../rust-core" }
+tokio = { version = "1", features = ["process", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[[bin]]
+name = "wowplay-gui"
+path = "src/main.rs"

@@ -8,9 +8,10 @@ license.workspace = true
 [dependencies]
 libloading = "0.8"
 thiserror = "1.0"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-# Test-only dependencies
+tempfile = "3"
 
 [lib]
 name = "wow_silicon_core"

@@ -1,4 +1,5 @@
 {
+  "extends": "../tsconfig/base.json",
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
@@ -6,14 +7,6 @@
     "lib": ["ESNext", "DOM"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "exactOptionalPropertyTypes": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "types": ["vite/client", "@tauri-apps/api"]

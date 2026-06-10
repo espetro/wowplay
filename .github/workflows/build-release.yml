@@ -77,3 +77,37 @@ jobs:
         run: gh release upload "${{ github.ref_name }}" wowplay-${{ github.ref_name }}-macos-arm64.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-gui:
+    runs-on: macos-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: oven-sh/setup-bun@v1
+
+      - name: Install mise tools
+        run: |
+          curl https://mise.run | sh
+          ~/.local/bin/mise install
+
+      - name: Build GUI
+        run: |
+          cd packages/gui
+          bun install
+          bun run tauri:build
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wow-silicon-gui
+          path: packages/gui/src-tauri/target/release/bundle/macos/*.app

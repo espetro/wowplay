@@ -6,7 +6,7 @@ selector = "[data-testid='options-menu-btn']"
 
 [[steps]]
 action = "assert"
-selector = "[data-testid='menu-item-reset']"
+selector = "[data-testid='menu-item-toggle-alerts']"
 args = { visible = true }
 
 [[steps]]

@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::PathBuf;
 
 use serde::Serialize;
@@ -5,6 +6,7 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::CommandError;
+use crate::logging::make_log_path;
 
 /// Result of running the setup sequence.
 #[derive(Debug, Clone, Serialize)]
@@ -52,13 +54,32 @@ pub async fn run_setup(
         }
     }
 
-    if exit_code.map(|c| c != 0).unwrap_or(false) {
+    let failed = exit_code.map(|c| c != 0).unwrap_or(false);
+    let err_msg = if failed {
         let msg = messages.join("\n");
-        return Err(CommandError::from(if msg.is_empty() {
+        Some(if msg.is_empty() {
             format!("setup failed with code {}", exit_code.unwrap_or(-1))
         } else {
             msg
-        }));
+        })
+    } else {
+        None
+    };
+
+    // Persist all sidecar output (and any error) to a log file.
+    if let Some(log_path) = make_log_path() {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            for line in &messages {
+                let _ = writeln!(f, "{line}");
+            }
+            if let Some(ref e) = err_msg {
+                let _ = writeln!(f, "[fail] {e}");
+            }
+        }
+    }
+
+    if let Some(msg) = err_msg {
+        return Err(CommandError::from(msg));
     }
 
     Ok(SetupResult {

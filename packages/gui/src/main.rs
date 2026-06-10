@@ -1,5 +1,6 @@
 mod commands;
 mod error;
+mod logging;
 mod state;
 
 use state::app_state::{AppConfig, AppState};

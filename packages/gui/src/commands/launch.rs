@@ -1,8 +1,12 @@
+use std::io::Write;
+use std::sync::{Arc, Mutex};
+
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::oneshot;
 
 use crate::error::CommandError;
+use crate::logging::make_log_path;
 use crate::state::app_state::AppState;
 
 /// Launches WoW via the wowplay sidecar and returns the process PID.
@@ -39,20 +43,25 @@ pub async fn launch_wow(
 
     // Drain output for ~1.5 s to surface fast failures (unknown runner, missing WoW.exe, etc.)
     // while not blocking on a successful long-running launch.
+    let captured: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let captured_clone = Arc::clone(&captured);
     let (fail_tx, fail_rx) = oneshot::channel::<String>();
     let drain_handle = tokio::spawn(async move {
-        let mut stderr_buf: Vec<String> = Vec::new();
         while let Some(event) = rx.recv().await {
             match event {
-                CommandEvent::Stderr(line) => {
-                    stderr_buf.push(String::from_utf8_lossy(&line).to_string());
+                CommandEvent::Stderr(line) | CommandEvent::Stdout(line) => {
+                    let s = String::from_utf8_lossy(&line).to_string();
+                    captured_clone.lock().unwrap().push(s);
                 }
                 CommandEvent::Terminated(payload) => {
                     if payload.code.map(|c| c != 0).unwrap_or(false) {
-                        let msg = if stderr_buf.is_empty() {
-                            format!("wowplay exited with code {}", payload.code.unwrap_or(-1))
-                        } else {
-                            stderr_buf.join("\n")
+                        let msg = {
+                            let buf = captured_clone.lock().unwrap();
+                            if buf.is_empty() {
+                                format!("wowplay exited with code {}", payload.code.unwrap_or(-1))
+                            } else {
+                                buf.join("\n")
+                            }
                         };
                         let _ = fail_tx.send(msg);
                     }
@@ -66,10 +75,26 @@ pub async fn launch_wow(
     match tokio::time::timeout(tokio::time::Duration::from_millis(1500), fail_rx).await {
         Ok(Ok(err_msg)) => {
             drain_handle.abort();
+            if let Some(log_path) = make_log_path() {
+                if let Ok(mut f) =
+                    std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                {
+                    let _ = writeln!(f, "[fail] {err_msg}");
+                }
+            }
             return Err(CommandError::from(err_msg));
         }
         _ => {
-            // Timeout or clean exit: process is running — drain task detaches naturally
+            // Timeout (process still running) or clean exit — write initial output to log.
+            if let Some(log_path) = make_log_path() {
+                if let Ok(mut f) =
+                    std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                {
+                    for line in captured.lock().unwrap().iter() {
+                        let _ = writeln!(f, "{line}");
+                    }
+                }
+            }
         }
     }
 

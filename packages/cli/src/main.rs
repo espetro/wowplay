@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 
@@ -164,8 +165,10 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
 }
 
 fn make_log_path() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let log_dir = PathBuf::from(home).join(".local/share/wowplay/logs");
+    let log_dir = match std::env::var("HOME") {
+        Ok(home) => PathBuf::from(home).join(".local/share/wowplay/logs"),
+        Err(_) => std::env::temp_dir().join("wowplay/logs"),
+    };
     fs::create_dir_all(&log_dir).map_err(|e| format!("mkdir logs: {e}"))?;
     prune_old_logs(&log_dir);
     let ts = timestamp_now();
@@ -238,14 +241,38 @@ fn main() {
             patching_dir,
             disable_lib_silicon,
         } => {
+            let log_path = match make_log_path() {
+                Ok(p) => {
+                    eprintln!("Logs are saved to: {}", p.display());
+                    Some(p)
+                }
+                Err(e) => {
+                    warn(&format!("could not create log file: {e}"));
+                    None
+                }
+            };
+
             print_runner_table();
 
-            let messages = SetupOrchestrator::run(
-                &wow_dir,
-                patching_dir,
-                !disable_lib_silicon,
-            )
-            .unwrap_or_else(|e| die(&e.to_string()));
+            let messages = SetupOrchestrator::run(&wow_dir, patching_dir, !disable_lib_silicon)
+                .unwrap_or_else(|e| {
+                    if let Some(ref p) = log_path {
+                        if let Ok(mut f) =
+                            fs::OpenOptions::new().create(true).append(true).open(p)
+                        {
+                            let _ = writeln!(f, "[fail] {e}");
+                        }
+                    }
+                    die(&e.to_string())
+                });
+
+            if let Some(ref p) = log_path {
+                if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
+                    for msg in &messages {
+                        let _ = writeln!(f, "[ ok ] {msg}");
+                    }
+                }
+            }
 
             for msg in messages {
                 ok(&msg);
@@ -312,7 +339,16 @@ fn main() {
 
             let session = launcher
                 .launch_wow_logged(&wow_dir, log_path.as_deref())
-                .unwrap_or_else(|e| die(&e.to_string()));
+                .unwrap_or_else(|e| {
+                    if let Some(ref p) = log_path {
+                        if let Ok(mut f) =
+                            fs::OpenOptions::new().create(true).append(true).open(p)
+                        {
+                            let _ = writeln!(f, "[fail] {e}");
+                        }
+                    }
+                    die(&e.to_string())
+                });
 
             session.wait().unwrap_or_else(|e| die(&e.to_string()));
         }

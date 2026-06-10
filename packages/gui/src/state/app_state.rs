@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
+use tauri_plugin_shell::process::CommandChild;
 
 /// Persisted application configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -13,14 +14,17 @@ pub struct AppConfig {
     /// Whether to show info-level alerts in the UI.
     #[serde(default)]
     pub show_alerts: bool,
+    /// Wine/CrossOver bottle name (e.g. "Win10").
+    #[serde(default)]
+    pub bottle: Option<String>,
 }
 
 /// Shared mutable state across Tauri commands.
 pub struct AppState {
     /// Current application configuration.
     pub config: RwLock<AppConfig>,
-    /// Handle to the spawned WoW process, if any.
-    pub wow_process: RwLock<Option<tokio::process::Child>>,
+    /// Handle to the spawned wowplay sidecar process, if any.
+    pub wow_process: RwLock<Option<CommandChild>>,
 }
 
 impl Default for AppState {

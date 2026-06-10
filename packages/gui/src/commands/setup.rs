@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
+use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::ShellExt;
 
 use crate::error::CommandError;
-use crate::state::app_state::AppState;
-use wow_silicon_core::setup::SetupOrchestrator;
 
 /// Result of running the setup sequence.
 #[derive(Debug, Clone, Serialize)]
@@ -13,24 +13,53 @@ pub struct SetupResult {
     pub messages: Vec<String>,
 }
 
-/// Runs the one-time setup sequence: stage resources, create wineloader2, apply game patch.
+/// Runs the one-time setup sequence via the wowplay sidecar.
 #[tauri::command]
 pub async fn run_setup(
+    app: tauri::AppHandle,
     wow_dir: String,
-    _runner: String,
-    _state: tauri::State<'_, AppState>,
+    runner: String,
 ) -> Result<SetupResult, CommandError> {
-    let wow_dir = PathBuf::from(wow_dir);
+    let mut args = vec!["setup".to_string(), "--wow-dir".to_string(), wow_dir];
+    if runner == "whisky" || runner == "moonshine" {
+        args.push("--disable-lib-silicon".to_string());
+    }
 
-    let messages = tokio::task::spawn_blocking(move || {
-        SetupOrchestrator::run(
-            &wow_dir,
-            None,  // Use default patching dir resolution
-            true,  // Enable libSilicon by default
-        )
-    })
-    .await
-    .map_err(|e| CommandError::from(format!("spawn blocking failed: {e}")))??;
+    let (mut rx, _child) = app
+        .shell()
+        .sidecar("wowplay")
+        .map_err(|e| CommandError::from(e.to_string()))?
+        .args(args)
+        .spawn()
+        .map_err(|e| CommandError::from(e.to_string()))?;
+
+    let mut messages: Vec<String> = Vec::new();
+    let mut exit_code: Option<i32> = None;
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(line) => {
+                messages.push(String::from_utf8_lossy(&line).to_string());
+            }
+            CommandEvent::Stderr(line) => {
+                messages.push(String::from_utf8_lossy(&line).to_string());
+            }
+            CommandEvent::Terminated(payload) => {
+                exit_code = payload.code;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    if exit_code.map(|c| c != 0).unwrap_or(false) {
+        let msg = messages.join("\n");
+        return Err(CommandError::from(if msg.is_empty() {
+            format!("setup failed with code {}", exit_code.unwrap_or(-1))
+        } else {
+            msg
+        }));
+    }
 
     Ok(SetupResult {
         success: true,
@@ -97,7 +126,7 @@ mod tests {
         let result = validate_wow_dir_sync(dir.path().to_string_lossy().to_string());
         assert!(result.valid);
         assert!(result.wow_exe_found);
-        assert_eq!(result.severity, "warning"); // no DivxDecoder.dll.bak
+        assert_eq!(result.severity, "warning");
     }
 
     #[test]

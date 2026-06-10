@@ -30,14 +30,6 @@ impl From<std::io::Error> for CommandError {
     }
 }
 
-impl From<wow_silicon_core::adapters::errors::LaunchError> for CommandError {
-    fn from(err: wow_silicon_core::adapters::errors::LaunchError) -> Self {
-        Self {
-            message: err.to_string(),
-        }
-    }
-}
-
 impl std::fmt::Display for CommandError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)

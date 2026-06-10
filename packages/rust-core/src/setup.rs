@@ -79,7 +79,7 @@ impl SetupOrchestrator {
             };
 
             let display_name = match name {
-                "crossover" => "Wine (CrossOver)",
+                "crossover" => "CrossOver",
                 "whisky" => "Whisky",
                 "moonshine" => "Moonshine",
                 _ => name,

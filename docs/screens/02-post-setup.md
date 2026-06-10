@@ -15,7 +15,7 @@ Application state after successful configuration.
 │                                         │
 │   RUNNER                                │
 │   ┌───────────────────────────────┐     │
-│   │ Wine (CrossOver)          [▼] │     │
+│   │ CrossOver                 [▼] │     │
 │   └───────────────────────────────┘     │
 │                                         │
 │   GAME FOLDER                           │
@@ -34,15 +34,17 @@ Application state after successful configuration.
 
 ## Elements
 
-| Element | State | Description |
-|---------|-------|-------------|
-| Window Title | Active | "WoW on Silicon" with traffic lights |
-| Menu Button | Default | "..." at top-right, opens options menu |
-| Title | Static | "WoW on Silicon" heading |
-| Subtitle | Static | Description text |
-| Runner | Selected | Shows active runner (e.g., "Wine (CrossOver)") |
-| Game Folder | Selected | Shows path to WoW installation |
-| Run Button | Primary | Blue/primary action button, launches the game |
+
+| Element      | State    | Description                                    |
+| ------------ | -------- | ---------------------------------------------- |
+| Window Title | Active   | "WoW on Silicon" with traffic lights           |
+| Menu Button  | Default  | "..." at top-right, opens options menu         |
+| Title        | Static   | "WoW on Silicon" heading                       |
+| Subtitle     | Static   | Description text                               |
+| Runner       | Selected | Shows active runner (e.g., "CrossOver")        |
+| Game Folder  | Selected | Shows path to WoW installation                 |
+| Run Button   | Primary  | Blue/primary action button, launches the game  |
+
 
 ## Behavior
 
@@ -50,3 +52,4 @@ Application state after successful configuration.
 - **Runner dropdown**: Can be changed to switch runners
 - **Game Folder**: Can be updated via Browse button
 - **Menu**: Reset returns to first-load state; Show alerts toggles info messages
+

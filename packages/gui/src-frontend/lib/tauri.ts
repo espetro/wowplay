@@ -44,7 +44,7 @@ function ipcError(message: string): TauriError {
 function invokeResult<T>(cmd: string, args?: Record<string, unknown>): ResultAsync<T, TauriError> {
   return ResultAsync.fromPromise(
     invoke<T>(cmd, args),
-    (e) => ipcError(String(e))
+    (e) => ipcError(typeof e === 'object' && e !== null && 'message' in e ? String((e as { message: unknown }).message) : String(e))
   );
 }
 

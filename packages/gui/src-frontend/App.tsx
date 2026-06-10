@@ -204,7 +204,7 @@ export default function App() {
       </div>
 
       <Show when={visibleAlerts().length > 0}>
-        <div class="flex flex-col gap-2 overflow-y-auto min-h-0">
+        <div class="flex flex-col gap-2 overflow-y-auto min-h-0 min-w-0 overflow-x-hidden">
           <For each={visibleAlerts()}>
             {(alert) => (
               <AlertCallout

@@ -25,7 +25,7 @@ export function AlertCallout(props: AlertProps) {
   return (
     <div data-testid={`alert-${props.type}`} class={`rounded-lg border p-4 flex gap-3 animate-slide-in ${styles[props.type]}`}>
       <Icon />
-      <p class="text-sm flex-1">{props.message}</p>
+      <p class="text-sm flex-1 break-words whitespace-pre-wrap min-w-0 max-h-32 overflow-y-auto">{props.message}</p>
       <Show when={props.onDismiss}>
         <button onClick={props.onDismiss} class="text-gray-400 hover:text-gray-600 transition-colors">
           <X class="w-4 h-4" />

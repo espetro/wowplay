@@ -24,6 +24,10 @@ use crate::ports::runner::RunnerPort;
 pub struct WowLauncher {
     runner: Arc<dyn RunnerPort>,
     wowsilicon_resources: PathBuf,
+    /// Optional override for rosettax87 binary source directory.
+    /// When set, `runtime_loader` and `libRuntimeRosettax87` are copied from here
+    /// instead of from `wowsilicon_resources/rosettax87/`.
+    rosettax87_bin_dir: Option<PathBuf>,
     bottle: String,
     use_sudo: bool,
     enable_lib_silicon: bool,
@@ -37,10 +41,20 @@ impl WowLauncher {
         Self {
             runner,
             wowsilicon_resources,
+            rosettax87_bin_dir: None,
             bottle: bottle.to_string(),
             use_sudo: false,
             enable_lib_silicon: true,
         }
+    }
+
+    /// Override the directory from which rosettax87 binaries are copied.
+    ///
+    /// When set, `runtime_loader` and `libRuntimeRosettax87` are sourced from this
+    /// directory instead of the patching resources dir.
+    pub fn with_rosettax87_bin_dir(mut self, dir: PathBuf) -> Self {
+        self.rosettax87_bin_dir = Some(dir);
+        self
     }
 
     /// Deprecated: sudo is no longer required; rosettax87 now installs its JIT hook
@@ -72,17 +86,22 @@ impl WowLauncher {
             )));
         }
 
-        Self::apply_game_patch(wow_dir, &self.wowsilicon_resources, self.enable_lib_silicon)?;
+        Self::apply_game_patch(
+            wow_dir,
+            &self.wowsilicon_resources,
+            self.rosettax87_bin_dir.as_deref(),
+            self.enable_lib_silicon,
+        )?;
         let loader = self.runner.prepare_loader()?;
 
-        let rosettax87 = wow_dir.join("rosettax87/rosettax87");
+        let runtime_loader = wow_dir.join("rosettax87/runtime_loader");
         Self::bootstrap_divx_decoder(wow_dir, &loader)?;
-        Self::ensure_rosetta_service(&rosettax87, self.use_sudo)?;
+        Self::ensure_rosetta_service(&runtime_loader, self.use_sudo)?;
 
         let wow_exe = Self::find_wow_exe(wow_dir)?;
         let env_vars = self.runner.build_env(&self.bottle);
 
-        let mut cmd = Command::new(&rosettax87);
+        let mut cmd = Command::new(&runtime_loader);
         cmd.arg(&loader).arg(&wow_exe).current_dir(wow_dir);
         for (k, v) in env_vars {
             cmd.env(k, v);
@@ -124,6 +143,7 @@ impl WowLauncher {
     pub fn apply_game_patch(
         wow_dir: &Path,
         resources: &Path,
+        rosettax87_bin_dir: Option<&Path>,
         enable_lib_silicon: bool,
     ) -> Result<(), LaunchError> {
         if !wow_dir.exists() {
@@ -157,16 +177,32 @@ impl WowLauncher {
         }
         copy("winerosetta/libDllLdr.dll", "libDllLdr.dll")?;
 
-        // rosettax87 JIT translator — arm64 binary that hooks Rosetta 2 for x87 FPU
-        copy("rosettax87/rosettax87", "rosettax87/rosettax87")?;
-        copy(
-            "rosettax87/libRuntimeRosettax87",
-            "rosettax87/libRuntimeRosettax87",
-        )?;
+        let (rosettax87_src, loader_name) = match rosettax87_bin_dir {
+            Some(dir) => (dir.to_path_buf(), "runtime_loader"),
+            None => (resources.join("rosettax87"), "rosettax87"),
+        };
+        let copy_rosetta = |src_name: &str, dst_rel: &str| -> Result<(), LaunchError> {
+            let src = rosettax87_src.join(src_name);
+            let dst = wow_dir.join(dst_rel);
+            if let Some(parent) = dst.parent() {
+                fs::create_dir_all(parent).map_err(|e| {
+                    LaunchError::SetupFailed(format!("mkdir {}: {e}", parent.display()))
+                })?;
+            }
+            fs::copy(&src, &dst).map_err(|e| {
+                LaunchError::SetupFailed(format!("copy {} → {}: {e}", src.display(), dst.display()))
+            })?;
+            Ok(())
+        };
+        copy_rosetta(loader_name, "rosettax87/runtime_loader")?;
+        copy_rosetta("libRuntimeRosettax87", "rosettax87/libRuntimeRosettax87")?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            for bin in ["rosettax87/rosettax87", "rosettax87/libRuntimeRosettax87"] {
+            for bin in [
+                "rosettax87/runtime_loader",
+                "rosettax87/libRuntimeRosettax87",
+            ] {
                 let p = wow_dir.join(bin);
                 fs::set_permissions(&p, fs::Permissions::from_mode(0o755))
                     .map_err(|e| LaunchError::SetupFailed(format!("chmod {}: {e}", p.display())))?;
@@ -245,7 +281,7 @@ impl WowLauncher {
     pub fn is_rosetta_service_running() -> bool {
         std::path::Path::new("/var/run/rosetta_helper.sock").exists()
             || Command::new("pgrep")
-                .args(["-x", "rosettax87"])
+                .args(["-x", "runtime_loader"])
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false)
@@ -383,5 +419,63 @@ impl WowSession {
             let _ = t.join();
         }
         Ok(status)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::process::Child;
+
+    struct MockRunner;
+
+    impl RunnerPort for MockRunner {
+        fn name(&self) -> &str {
+            "mock"
+        }
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn prepare_loader(&self) -> Result<PathBuf, crate::adapters::errors::LaunchError> {
+            Ok(PathBuf::from("/usr/bin/true"))
+        }
+        fn build_env(&self, _bottle: &str) -> Vec<(String, String)> {
+            vec![]
+        }
+        fn spawn(
+            &self,
+            _program: &Path,
+            _args: &[&str],
+            _env: &[(String, String)],
+            _cwd: &Path,
+        ) -> Result<Child, crate::adapters::errors::LaunchError> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_rosettax87_bin_dir_default_is_none() {
+        let launcher = WowLauncher::new(
+            std::sync::Arc::new(MockRunner),
+            PathBuf::from("/tmp/resources"),
+            "test",
+        );
+        assert!(launcher.rosettax87_bin_dir.is_none());
+    }
+
+    #[test]
+    fn test_rosettax87_bin_dir_override_stores_path() {
+        let launcher = WowLauncher::new(
+            std::sync::Arc::new(MockRunner),
+            PathBuf::from("/tmp/resources"),
+            "test",
+        )
+        .with_rosettax87_bin_dir(PathBuf::from("/tmp/rtx87"));
+
+        assert_eq!(
+            launcher.rosettax87_bin_dir,
+            Some(PathBuf::from("/tmp/rtx87"))
+        );
     }
 }

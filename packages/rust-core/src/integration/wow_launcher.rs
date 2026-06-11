@@ -174,6 +174,13 @@ impl WowLauncher {
                 "libSiliconPatch/wotlk/libSiliconPatch.dll",
                 "mods/libSiliconPatch.dll",
             )?;
+        } else {
+            let stale = wow_dir.join("mods/libSiliconPatch.dll");
+            if stale.exists() {
+                fs::remove_file(&stale).map_err(|e| {
+                    LaunchError::SetupFailed(format!("remove stale libSiliconPatch.dll: {e}"))
+                })?;
+            }
         }
 
         let (rosettax87_src, loader_name) = match rosettax87_bin_dir {
@@ -232,20 +239,39 @@ impl WowLauncher {
             } else {
                 &["mods/winerosetta.dll"]
             },
+            if enable_lib_silicon {
+                &[]
+            } else {
+                &["mods/libSiliconPatch.dll"]
+            },
         )?;
 
         Ok(())
     }
 
-    fn update_dlls_txt(wow_dir: &Path, entries: &[&str]) -> Result<(), LaunchError> {
+    fn update_dlls_txt(
+        wow_dir: &Path,
+        to_add: &[&str],
+        to_remove: &[&str],
+    ) -> Result<(), LaunchError> {
         let path = wow_dir.join("dlls.txt");
         let existing = fs::read_to_string(&path).unwrap_or_default();
-        let mut out = existing.clone();
-        for entry in entries {
-            if !existing.to_lowercase().contains(&entry.to_lowercase()) {
-                out.push_str(entry);
-                out.push('\n');
+        let mut lines: Vec<&str> = existing
+            .lines()
+            .filter(|line| {
+                let lower = line.to_lowercase();
+                !to_remove.iter().any(|r| lower == r.to_lowercase())
+            })
+            .collect();
+        for entry in to_add {
+            let lower = entry.to_lowercase();
+            if !lines.iter().any(|l| l.to_lowercase() == lower) {
+                lines.push(entry);
             }
+        }
+        let mut out = lines.join("\n");
+        if !out.is_empty() {
+            out.push('\n');
         }
         fs::write(&path, out)
             .map_err(|e| LaunchError::SetupFailed(format!("write dlls.txt: {e}")))?;
@@ -448,6 +474,42 @@ mod tests {
         ) -> Result<Child, crate::adapters::errors::LaunchError> {
             unimplemented!()
         }
+    }
+
+    #[test]
+    fn test_update_dlls_txt_removes_stale_entry_when_lib_silicon_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let dlls = dir.path().join("dlls.txt");
+        fs::write(&dlls, "mods/winerosetta.dll\nmods/libSiliconPatch.dll\n").unwrap();
+
+        WowLauncher::update_dlls_txt(
+            dir.path(),
+            &["mods/winerosetta.dll"],
+            &["mods/libSiliconPatch.dll"],
+        )
+        .unwrap();
+
+        let contents = fs::read_to_string(&dlls).unwrap();
+        assert!(!contents.to_lowercase().contains("libsiliconpatch"));
+        assert!(contents.to_lowercase().contains("winerosetta"));
+    }
+
+    #[test]
+    fn test_update_dlls_txt_keeps_entry_when_lib_silicon_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let dlls = dir.path().join("dlls.txt");
+        fs::write(&dlls, "").unwrap();
+
+        WowLauncher::update_dlls_txt(
+            dir.path(),
+            &["mods/winerosetta.dll", "mods/libSiliconPatch.dll"],
+            &[],
+        )
+        .unwrap();
+
+        let contents = fs::read_to_string(&dlls).unwrap();
+        assert!(contents.to_lowercase().contains("libsiliconpatch"));
+        assert!(contents.to_lowercase().contains("winerosetta"));
     }
 
     #[test]

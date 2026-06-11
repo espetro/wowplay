@@ -72,8 +72,10 @@ pub async fn launch_wow(
         Ok(Ok(err_msg)) => {
             drain_handle.abort();
             if let Some(log_path) = make_log_path() {
-                if let Ok(mut f) =
-                    std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
                 {
                     let _ = writeln!(f, "[fail] {err_msg}");
                 }
@@ -83,8 +85,10 @@ pub async fn launch_wow(
         _ => {
             // Timeout (process still running) or clean exit — write initial output to log.
             if let Some(log_path) = make_log_path() {
-                if let Ok(mut f) =
-                    std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
                 {
                     for line in captured.lock().unwrap().iter() {
                         let _ = writeln!(f, "{line}");

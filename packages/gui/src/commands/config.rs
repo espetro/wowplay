@@ -7,7 +7,10 @@ use crate::state::app_state::{AppConfig, AppState};
 /// Gets the current application configuration.
 #[tauri::command]
 pub async fn get_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, CommandError> {
-    let config = state.config.read().map_err(|e| CommandError::from(e.to_string()))?;
+    let config = state
+        .config
+        .read()
+        .map_err(|e| CommandError::from(e.to_string()))?;
     Ok(config.clone())
 }
 
@@ -18,7 +21,10 @@ pub async fn set_config(
     config: AppConfig,
     app_handle: AppHandle,
 ) -> Result<(), CommandError> {
-    let mut state_config = state.config.write().map_err(|e| CommandError::from(e.to_string()))?;
+    let mut state_config = state
+        .config
+        .write()
+        .map_err(|e| CommandError::from(e.to_string()))?;
     *state_config = config.clone();
 
     let store = app_handle
@@ -29,7 +35,9 @@ pub async fn set_config(
         "config",
         serde_json::to_value(&config).map_err(|e| CommandError::from(e.to_string()))?,
     );
-    store.save().map_err(|e| CommandError::from(e.to_string()))?;
+    store
+        .save()
+        .map_err(|e| CommandError::from(e.to_string()))?;
     Ok(())
 }
 
@@ -39,7 +47,10 @@ pub async fn reset_config(
     state: tauri::State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), CommandError> {
-    let mut config = state.config.write().map_err(|e| CommandError::from(e.to_string()))?;
+    let mut config = state
+        .config
+        .write()
+        .map_err(|e| CommandError::from(e.to_string()))?;
     *config = AppConfig::default();
 
     let store = app_handle
@@ -47,6 +58,8 @@ pub async fn reset_config(
         .build()
         .map_err(|e| CommandError::from(e.to_string()))?;
     store.delete("config");
-    store.save().map_err(|e| CommandError::from(e.to_string()))?;
+    store
+        .save()
+        .map_err(|e| CommandError::from(e.to_string()))?;
     Ok(())
 }

@@ -119,8 +119,10 @@ impl CrossoverLauncher {
         let wowsilicon = find_wowsilicon()?;
         let resources = wowsilicon_resources(&wowsilicon);
         let adapter = CrossOverAdapter::new(crossover);
-        let inner = WowLauncher::new(std::sync::Arc::new(adapter), resources, bottle)
-            .with_rosettax87_bin_dir(PathBuf::from("build/bin"));
+        let mut inner = WowLauncher::new(std::sync::Arc::new(adapter), resources, bottle);
+        if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {
+            inner = inner.with_rosettax87_bin_dir(PathBuf::from(bin_dir));
+        }
         Ok(Self { inner })
     }
 
@@ -128,8 +130,10 @@ impl CrossoverLauncher {
     pub fn from_patching_dir(bottle: &str, patching_dir: PathBuf) -> Result<Self, LaunchError> {
         let crossover = find_crossover()?;
         let adapter = CrossOverAdapter::new(crossover);
-        let inner = WowLauncher::new(std::sync::Arc::new(adapter), patching_dir, bottle)
-            .with_rosettax87_bin_dir(PathBuf::from("build/bin"));
+        let mut inner = WowLauncher::new(std::sync::Arc::new(adapter), patching_dir, bottle);
+        if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {
+            inner = inner.with_rosettax87_bin_dir(PathBuf::from(bin_dir));
+        }
         Ok(Self { inner })
     }
 

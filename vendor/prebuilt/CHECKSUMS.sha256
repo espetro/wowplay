@@ -1,0 +1,12 @@
+# Vendored prebuilt binaries — verified at build time by stage-patching.sh
+# Format: shasum -a 256 -c (run from this directory)
+#
+# d9vk/d3d9.dll
+#   Source:  https://github.com/Gcenx/DXVK-macOS (bundled via WoWSilicon)
+#   License: zlib/libpng
+4968b3a493342b54f01aa080593bfd38cc006181aaeb6dc0059bc3bb9ce9982e  d9vk/d3d9.dll
+#
+# libSiliconPatch/wotlk/libSiliconPatch.dll
+#   Source:  WoWSilicon.app bundle (closed-source, opt-in only)
+#   License: unknown / proprietary
+1f92972b94dd78a26184ae8e1f58de96b0804cf9e4294af679be4ada7d50de68  libSiliconPatch/wotlk/libSiliconPatch.dll

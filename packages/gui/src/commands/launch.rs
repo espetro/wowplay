@@ -18,7 +18,7 @@ pub async fn launch_wow(
     bottle: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<u32, CommandError> {
-    let mut args = vec![
+    let args = vec![
         "run".to_string(),
         "--wow-dir".to_string(),
         wow_dir,
@@ -27,10 +27,6 @@ pub async fn launch_wow(
         "--bottle".to_string(),
         bottle,
     ];
-    if runner == "whisky" || runner == "moonshine" {
-        args.push("--disable-lib-silicon".to_string());
-    }
-
     let (mut rx, child) = app
         .shell()
         .sidecar("wowplay")

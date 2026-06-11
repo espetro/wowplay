@@ -1,9 +1,3 @@
 [submodule "vendor/rosettax87_jit"]
 	path = vendor/rosettax87_jit
 	url = https://github.com/Lifeisawful/rosettax87_jit
-[submodule "vendor/wowsilicon"]
-	path = vendor/wowsilicon
-	url = https://github.com/WoWSilicon/WoWSilicon
-[submodule "vendor/rosettax87"]
-	path = vendor/rosettax87
-	url = https://github.com/WineAndAqua/rosettax87.git

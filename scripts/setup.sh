@@ -9,7 +9,7 @@ echo "Setting up play-wow-on-silicon development environment..."
 
 # ── Vendor submodules ────────────────────────────────────────────────────────
 echo "→ Initialising vendor submodules…"
-git -C "$REPO_ROOT" submodule update --init --recursive vendor/rosettax87_jit vendor/wowsilicon
+git -C "$REPO_ROOT" submodule update --init --recursive vendor/rosettax87_jit
 
 # ── Git hooks via lefthook ────────────────────────────────────────────────────
 echo "→ Installing git hooks…"

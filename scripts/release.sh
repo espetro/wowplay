@@ -72,19 +72,29 @@ cd "${REPO_ROOT}"
 
 ZIG_OUT="${REPO_ROOT}/packages/zig-glue/zig-out"
 
+# ── Build rosettax87_jit ─────────────────────────────────────────────────────
+
+echo ""
+echo "==> Building rosettax87 from vendor/rosettax87_jit…"
+cmake \
+  -B "${REPO_ROOT}/vendor/rosettax87_jit/build" \
+  -S "${REPO_ROOT}/vendor/rosettax87_jit" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="${REPO_ROOT}/vendor/rosettax87_jit/build/bin" \
+  -Wno-dev \
+  --log-level=WARNING
+cmake --build "${REPO_ROOT}/vendor/rosettax87_jit/build" --config Release
+
 # ── Stage dist/ ─────────────────────────────────────────────────────────────
 
 echo ""
 echo "==> Staging dist/…"
 rm -rf "${DIST_DIR}"
-mkdir -p "${DIST_DIR}/patching"
+mkdir -p "${DIST_DIR}"
 
 cp "${CLI_BIN}" "${DIST_DIR}/${BIN_NAME}"
 
-PATCHING_SRC="${REPO_ROOT}/vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching"
-cp -R "${PATCHING_SRC}/." "${DIST_DIR}/patching/"
-cp "${ZIG_OUT}/bin/winerosetta.dll" "${DIST_DIR}/patching/winerosetta/winerosetta.dll"
-[[ -f "${ZIG_OUT}/bin/winerosetta.pdb" ]] && cp "${ZIG_OUT}/bin/winerosetta.pdb" "${DIST_DIR}/patching/winerosetta/winerosetta.pdb"
+DIST_DIR="${DIST_DIR}" "${REPO_ROOT}/scripts/stage-patching.sh"
 
 # ── Sign inner binaries (rosettax87 pair) ───────────────────────────────────
 

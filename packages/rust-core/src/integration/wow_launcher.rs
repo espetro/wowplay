@@ -36,7 +36,8 @@ pub struct WowLauncher {
 impl WowLauncher {
     /// Create a launcher with the given runner and resources.
     ///
-    /// `enable_lib_silicon` defaults to `true` — set to `false` to skip libSiliconPatch.dll deployment.
+    /// `enable_lib_silicon` defaults to `false` — set to `true` via `with_enable_lib_silicon` to
+    /// opt in to libSiliconPatch.dll deployment.
     pub fn new(runner: Arc<dyn RunnerPort>, wowsilicon_resources: PathBuf, bottle: &str) -> Self {
         Self {
             runner,
@@ -44,7 +45,7 @@ impl WowLauncher {
             rosettax87_bin_dir: None,
             bottle: bottle.to_string(),
             use_sudo: false,
-            enable_lib_silicon: true,
+            enable_lib_silicon: false,
         }
     }
 
@@ -66,8 +67,7 @@ impl WowLauncher {
 
     /// Enable or disable libSiliconPatch.dll deployment.
     ///
-    /// Defaults to `true`. Set to `false` when running on Whisky where winerosetta's VEH
-    /// handles x87 exception handling without the proprietary library.
+    /// Defaults to `false` (opt-in). Pass `true` to deploy the closed-source patch library.
     pub fn with_enable_lib_silicon(mut self, enable: bool) -> Self {
         self.enable_lib_silicon = enable;
         self

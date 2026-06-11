@@ -46,9 +46,9 @@ enum Cmd {
         /// Explicit path to Whisky.app (only used when --runner whisky)
         #[arg(long)]
         whisky_bundle: Option<PathBuf>,
-        /// Disable libSiliconPatch.dll (enabled by default; may improve compatibility on some setups)
+        /// Enable libSiliconPatch.dll (opt-in; off by default)
         #[arg(long)]
-        disable_lib_silicon: bool,
+        enable_lib_silicon: bool,
     },
     /// One-time setup: stage DLLs and create wineloader2
     Setup {
@@ -59,9 +59,9 @@ enum Cmd {
         /// Use vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching from the repo.
         #[arg(long)]
         patching_dir: Option<PathBuf>,
-        /// Disable libSiliconPatch.dll (enabled by default)
+        /// Enable libSiliconPatch.dll (opt-in; off by default)
         #[arg(long)]
-        disable_lib_silicon: bool,
+        enable_lib_silicon: bool,
     },
     /// Print environment checklist and exit
     Diagnose {
@@ -240,7 +240,7 @@ fn main() {
         Cmd::Setup {
             wow_dir,
             patching_dir,
-            disable_lib_silicon,
+            enable_lib_silicon,
         } => {
             let log_path = match make_log_path() {
                 Ok(p) => {
@@ -255,7 +255,7 @@ fn main() {
 
             print_runner_table();
 
-            let messages = SetupOrchestrator::run(&wow_dir, patching_dir, !disable_lib_silicon)
+            let messages = SetupOrchestrator::run(&wow_dir, patching_dir, enable_lib_silicon)
                 .unwrap_or_else(|e| {
                     if let Some(ref p) = log_path {
                         if let Ok(mut f) =
@@ -289,7 +289,7 @@ fn main() {
             diagnose,
             no_log,
             whisky_bundle,
-            disable_lib_silicon,
+            enable_lib_silicon,
         } => {
             if diagnose {
                 run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
@@ -315,8 +315,8 @@ fn main() {
             if sudo {
                 launcher = launcher.with_sudo();
             }
-            if disable_lib_silicon {
-                launcher = launcher.with_enable_lib_silicon(false);
+            if enable_lib_silicon {
+                launcher = launcher.with_enable_lib_silicon(true);
             }
 
             let wow_dir = wow_dir.unwrap_or_else(|| {

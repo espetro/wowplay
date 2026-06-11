@@ -47,12 +47,21 @@ jobs:
         run: zig build --release=safe
         working-directory: packages/zig-glue
 
+      - name: Build rosettax87_jit
+        run: |
+          cmake \
+            -B vendor/rosettax87_jit/build \
+            -S vendor/rosettax87_jit \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Wno-dev \
+            --log-level=WARNING
+          cmake --build vendor/rosettax87_jit/build --config Release
+
       - name: Stage release bundle
         run: |
-          mkdir -p dist/patching
+          mkdir -p dist
           cp target/aarch64-apple-darwin/release/wowplay dist/wowplay
-          cp -R vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching/. dist/patching/
-          cp packages/zig-glue/zig-out/bin/winerosetta.dll dist/patching/winerosetta/winerosetta.dll
+          bash scripts/stage-patching.sh
 
       - name: Import signing certificate
         env:
@@ -66,17 +75,10 @@ jobs:
           security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
-      - name: Sign inner binaries (rosettax87 + ntdll.so)
+      - name: Sign inner binaries (rosettax87 pair)
         run: |
           IDENTITY="Developer ID Application: Joaquin Terrasa Moya (Y3ZC4LB357)"
           ENTITLEMENTS="packages/gui/Rosettax87.entitlements"
-          # Sign ntdll.so (Mach-O x86_64 Wine host library).
-          codesign \
-            --sign "$IDENTITY" \
-            --options runtime --timestamp --force \
-            --entitlements "$ENTITLEMENTS" \
-            dist/patching/winerosetta/ntdll.so
-          codesign --verify --verbose dist/patching/winerosetta/ntdll.so
           # Sign libRuntimeRosettax87 first (dependency), then rosettax87.
           codesign \
             --sign "$IDENTITY" \
@@ -158,6 +160,16 @@ jobs:
         run: zig build --release=safe
         working-directory: packages/zig-glue
 
+      - name: Build rosettax87_jit
+        run: |
+          cmake \
+            -B vendor/rosettax87_jit/build \
+            -S vendor/rosettax87_jit \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Wno-dev \
+            --log-level=WARNING
+          cmake --build vendor/rosettax87_jit/build --config Release
+
       - name: Import signing certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -185,11 +197,6 @@ jobs:
           echo "App bundle: $APP"
 
           # Sign Mach-O binaries in Resources/patching/ (innermost first)
-          codesign --sign "$IDENTITY" --options runtime --timestamp --force \
-            --entitlements "$ENTITLEMENTS" \
-            "$APP/Contents/Resources/patching/winerosetta/ntdll.so"
-          codesign --verify --verbose "$APP/Contents/Resources/patching/winerosetta/ntdll.so"
-
           codesign --sign "$IDENTITY" --options runtime --timestamp --force \
             --entitlements "$ENTITLEMENTS" \
             "$APP/Contents/Resources/patching/rosettax87/libRuntimeRosettax87"

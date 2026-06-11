@@ -18,7 +18,7 @@ use crate::ports::runner::RunnerPort;
 /// Launch sequence:
 /// 1. Apply game patch: stage D9VK, winerosetta (mods/ only), libSiliconPatch, rosettax87
 /// 2. Prepare loader via runner (e.g. create `$CX_HOSTED/wineloader2`)
-/// 3. Patch DivxDecoder.dll once via libDllLdr (enables winerosetta injection)
+/// 3. Patch DivxDecoder.dll natively via Rust PE patcher (enables winerosetta injection)
 /// 4. Ensure rosettax87 background service is running
 /// 5. `rosettax87 $LOADER WoW.exe` (from WoW dir)
 pub struct WowLauncher {
@@ -95,7 +95,7 @@ impl WowLauncher {
         let loader = self.runner.prepare_loader()?;
 
         let runtime_loader = wow_dir.join("rosettax87/runtime_loader");
-        Self::bootstrap_divx_decoder(wow_dir, &loader)?;
+        Self::bootstrap_divx_decoder(wow_dir)?;
         Self::ensure_rosetta_service(&runtime_loader, self.use_sudo)?;
 
         let wow_exe = Self::find_wow_exe(wow_dir)?;
@@ -175,7 +175,6 @@ impl WowLauncher {
                 "mods/libSiliconPatch.dll",
             )?;
         }
-        copy("winerosetta/libDllLdr.dll", "libDllLdr.dll")?;
 
         let (rosettax87_src, loader_name) = match rosettax87_bin_dir {
             Some(dir) => (dir.to_path_buf(), "runtime_loader"),
@@ -253,27 +252,24 @@ impl WowLauncher {
         Ok(())
     }
 
-    /// Patches DivxDecoder.dll once via libDllLdr — required for winerosetta to inject.
-    fn bootstrap_divx_decoder(wow_dir: &Path, wineloader2: &Path) -> Result<(), LaunchError> {
-        if wow_dir.join("DivxDecoder.dll.bak").exists() {
-            return Ok(());
+    /// Patches DivxDecoder.dll (and DivxTac.dll if present) to import winerosetta.
+    /// Native Rust implementation — no Wine dependency.
+    fn bootstrap_divx_decoder(wow_dir: &Path) -> Result<(), LaunchError> {
+        use crate::adapters::pe_import_patcher::patch_dll_imports;
+
+        let dlls_to_patch = ["DivxDecoder.dll", "DivxTac.dll"];
+
+        for dll_name in &dlls_to_patch {
+            let dll_path = wow_dir.join(dll_name);
+            if !dll_path.exists() {
+                continue; // Some clients don't have DivxTac.dll
+            }
+
+            patch_dll_imports(wow_dir, dll_name, "mods/winerosetta.dll").map_err(|e| {
+                LaunchError::SetupFailed(format!("Failed to patch {}: {}", dll_name, e))
+            })?;
         }
-        if !wow_dir.join("DivxDecoder.dll").exists() {
-            return Err(LaunchError::SetupFailed(
-                "DivxDecoder.dll not found — reinstall client".into(),
-            ));
-        }
-        Command::new(wineloader2)
-            .args(["rundll32", "libDllLdr.dll,PatchDivxDecoder"])
-            .arg(wow_dir)
-            .current_dir(wow_dir)
-            .env(
-                "WINEDLLOVERRIDES",
-                "winemenubuilder.exe=d;mscoree=d;mshtml=d",
-            )
-            .env("WINEDEBUG", "-all")
-            .status()
-            .map_err(LaunchError::SpawnFailed)?;
+
         Ok(())
     }
 

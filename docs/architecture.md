@@ -117,7 +117,7 @@ Open-source replacement for closed-source libSiliconPatch.
 ```mermaid
 flowchart TD
     subgraph one-time_patch ["One-time patch step"]
-        libDllLdr["libDllLdr.dll"] -->|"patches"| DivxDecoder["DivxDecoder.dll"] -->|"loads on game start"| winerosetta_mods["mods/winerosetta.dll"]
+        patcher["Native PE Patcher (Rust)"] -->|"patches"| DivxDecoder["DivxDecoder.dll"] -->|"loads on game start"| winerosetta_mods["mods/winerosetta.dll"]
         winerosetta_mods -->|"reads"| dlls_txt["dlls.txt"] -->|"loads"| libSiliconPatch["mods/libSiliconPatch.dll"]
     end
 
@@ -142,7 +142,7 @@ CrossOver's `wineloader` (x86_64 on CrossOver 24) is code-signed with hardened r
 ### Why DivxDecoder bootstrap?
 
 `winerosetta.dll` cannot load itself — it must be brought in by Wine's native DLL loader. The client's existing `DivxDecoder.dll` is the injection anchor:
-1. `libDllLdr.dll,PatchDivxDecoder` rewrites `DivxDecoder.dll` in-place (backed up to `.bak`) to import `mods/winerosetta.dll`.
+1. Our native Rust PE patcher rewrites `DivxDecoder.dll` in-place (backed up to `.bak`) to import `mods/winerosetta.dll`.
 2. When WoW.exe starts, Wine loads DivxDecoder.dll as usual, which now pulls in winerosetta.
 3. winerosetta installs its vectored exception handler (VEH) and optionally reads `dlls.txt` to load `mods/libSiliconPatch.dll` (disabled via `--disable-lib-silicon`).
 4. The VEH hot-patches illegal x87 opcodes (`fcomp st`, `arpl`) that rosettax87's JIT alone cannot handle.

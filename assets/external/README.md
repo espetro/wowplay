@@ -11,9 +11,9 @@ from an installed app bundle.
 | `winerosetta.dll` | Built by zig-glue from vendored C++ | Yes — [Gcenx/winerosetta](https://github.com/Gcenx/winerosetta) (MIT) | Already owned |
 | `mods/libSiliconPatch.dll` (WotLK) | WoWSilicon.app bundle | No | **P0** — recreate in Rust (SiliconPatchAdapter) |
 | `d3d9.dll` | WoWSilicon.app bundle (D9VK) | Yes — [doitsujin/dxvk](https://github.com/doitsujin/dxvk) | P1 — vendor D9VK build |
-| `libDllLdr.dll` | WoWSilicon.app bundle | Unknown | Investigate source; needed for DivxDecoder bootstrap |
-| `rosettax87/rosettax87` | WoWSilicon.app bundle | Yes — [Gcenx/rosettax87](https://github.com/Gcenx/rosettax87) | P1 — vendor build |
-| `rosettax87/libRuntimeRosettax87` | WoWSilicon.app bundle | Yes — same repo | P1 — vendor build |
+| `libDllLdr.dll` | ~~WoWSilicon.app bundle~~ | ~~Unknown~~ | ✅ Replaced by native Rust PE patcher |
+| `rosettax87/runtime_loader` | Built from [WineAndAqua/rosettax87_jit](https://github.com/WineAndAqua/rosettax87_jit) via `vendor/rosettax87` | Yes — open source | ✅ Source-built; set `ROSETTAX87_BIN_DIR` to build output dir |
+| `rosettax87/libRuntimeRosettax87` | Same source | Yes — same repo | ✅ Source-built alongside `runtime_loader` |
 
 ## Notes
 

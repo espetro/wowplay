@@ -103,10 +103,7 @@ fn print_runner_table() {
 }
 
 fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
-    let report = match run_checklist(
-        wow_dir.map(|p| p.as_path()),
-        patching_dir.cloned(),
-    ) {
+    let report = match run_checklist(wow_dir.map(|p| p.as_path()), patching_dir.cloned()) {
         Ok(r) => r,
         Err(e) => {
             die(&format!("diagnostics failed: {e}"));
@@ -149,7 +146,7 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
     if let (Some(patched), Some(found)) = (report.divxdecoder_patched, report.divxdecoder_found) {
         info("Checking DivxDecoder…");
         if patched {
-            ok("DivxDecoder.dll patched");
+            ok("DivxDecoder.dll patched (native Rust patcher)");
         } else if found {
             warn("DivxDecoder.dll not yet patched — will patch on first launch");
         } else {
@@ -159,7 +156,11 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
 
     info("Available runners:");
     for runner in report.runners {
-        let status = if runner.available { "available" } else { "not found" };
+        let status = if runner.available {
+            "available"
+        } else {
+            "not found"
+        };
         info(&format!("  {}: {status}", runner.name));
     }
 }
@@ -302,12 +303,10 @@ fn main() {
                     if let Some(bundle) = whisky_bundle {
                         std::sync::Arc::new(WhiskyAdapter::new(bundle))
                     } else {
-                        RunnerRegistry::resolve(&runner)
-                            .unwrap_or_else(|e| die(&e.to_string()))
+                        RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
                     }
                 } else {
-                    RunnerRegistry::resolve(&runner)
-                        .unwrap_or_else(|e| die(&e.to_string()))
+                    RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
                 };
             let mut launcher = WowLauncher::new(runner, resources, &bottle);
             if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {

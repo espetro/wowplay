@@ -2,7 +2,6 @@
   "name": "@wow-silicon/gauge-tests",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
   "scripts": {
     "test": "gauge run specs/",
     "test:ci": "gauge run specs/ --env ci"

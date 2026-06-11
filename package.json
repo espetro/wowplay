@@ -10,7 +10,6 @@
     "build": "cd packages/gui && bun run build",
     "dev": "cd packages/gui && bun run tauri:dev",
     "test": "cargo test --workspace && cd packages/gui && bun run test",
-    "test:e2e": "cd packages/gui && bun run test:e2e",
     "test:gauge": "cd packages/gui && bun run test:gauge"
   }
 }

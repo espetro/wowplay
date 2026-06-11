@@ -309,7 +309,9 @@ fn main() {
                     RunnerRegistry::resolve(&runner)
                         .unwrap_or_else(|e| die(&e.to_string()))
                 };
-            let mut launcher = WowLauncher::new(runner, resources, &bottle);
+            let rosettax87_bin = PathBuf::from("build/bin");
+            let mut launcher = WowLauncher::new(runner, resources, &bottle)
+                .with_rosettax87_bin_dir(rosettax87_bin);
             if sudo {
                 launcher = launcher.with_sudo();
             }

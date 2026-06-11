@@ -4,3 +4,6 @@
 [submodule "vendor/wowsilicon"]
 	path = vendor/wowsilicon
 	url = https://github.com/WoWSilicon/WoWSilicon
+[submodule "vendor/rosettax87"]
+	path = vendor/rosettax87
+	url = https://github.com/WineAndAqua/rosettax87.git

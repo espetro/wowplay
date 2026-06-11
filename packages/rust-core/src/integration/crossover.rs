@@ -80,7 +80,7 @@ pub fn apply_game_patch(
     resources: &Path,
     enable_lib_silicon: bool,
 ) -> Result<(), LaunchError> {
-    WowLauncher::apply_game_patch(wow_dir, resources, enable_lib_silicon)
+    WowLauncher::apply_game_patch(wow_dir, resources, None, enable_lib_silicon)
 }
 
 /// Returns the Wine environment for a CrossOver bottle launch.
@@ -119,7 +119,8 @@ impl CrossoverLauncher {
         let wowsilicon = find_wowsilicon()?;
         let resources = wowsilicon_resources(&wowsilicon);
         let adapter = CrossOverAdapter::new(crossover);
-        let inner = WowLauncher::new(std::sync::Arc::new(adapter), resources, bottle);
+        let inner = WowLauncher::new(std::sync::Arc::new(adapter), resources, bottle)
+            .with_rosettax87_bin_dir(PathBuf::from("build/bin"));
         Ok(Self { inner })
     }
 
@@ -127,7 +128,8 @@ impl CrossoverLauncher {
     pub fn from_patching_dir(bottle: &str, patching_dir: PathBuf) -> Result<Self, LaunchError> {
         let crossover = find_crossover()?;
         let adapter = CrossOverAdapter::new(crossover);
-        let inner = WowLauncher::new(std::sync::Arc::new(adapter), patching_dir, bottle);
+        let inner = WowLauncher::new(std::sync::Arc::new(adapter), patching_dir, bottle)
+            .with_rosettax87_bin_dir(PathBuf::from("build/bin"));
         Ok(Self { inner })
     }
 

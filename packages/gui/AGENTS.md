@@ -30,11 +30,8 @@ bun run tauri:build
 # Unit tests (Vitest)
 bun run test
 
-# E2E tests (tauri-pilot)
-bun run test:e2e
-
 # E2E tests (Gauge)
-cd gauge-tests && gauge run specs/
+bun run test:gauge
 ```
 
 ### Code Quality
@@ -71,23 +68,6 @@ bun run validate
 
 ## E2E Testing
 
-### tauri-pilot (TOML-based declarative)
-Located in `e2e/`. Run all flows with:
-```bash
-bun run test:e2e
-# equivalent to: tauri-pilot run e2e/
-```
-Five flows in `e2e/`:
-| File | UX flow |
-|------|---------|
-| `flow.toml` | Setup: runner → folder → Setup btn → "Setup complete" → Run btn |
-| `validation.toml` | Browse: valid path enables btn; invalid path shows error alert |
-| `menu-flow.toml` | Menu: open, toggle alerts, reset |
-| `alerts.toml` | Alerts: error visible by default, info hidden |
-| `run-flow.toml` | Run: post-setup Run btn → PID alert |
-
-All selectors use `data-testid` attributes (see Step 8).
-
 ### Gauge (BDD-style)
 Located in `gauge-tests/`. Uses Gauge + TypeScript + `TauriPilotFlow` builder.
 ```bash
@@ -98,7 +78,7 @@ bun run test:gauge
 - Steps: `gauge-tests/tests/StepImplementation.ts`
 - Shared builder: `gauge-tests/support/tauri-pilot.ts` — assembles TOML at runtime and executes via `tauri-pilot run`
 
-**Architecture**: each `@Step` creates a `TauriPilotFlow`, chains fluent calls (`.click()`, `.ipc()`, `.assert()`, `.wait()`), then calls `.run()` which writes a temp TOML to `/tmp/`, invokes `tauri-pilot run <file>`, and cleans up.
+**Architecture**: `@BeforeScenario` creates one `TauriPilotFlow` per scenario. Each `@Step` appends to that flow (`.click()`, `.ipc()`, `.assert()`, `.wait()`) — no per-step spawn. `@AfterScenario` calls `.run()` once, which writes a temp TOML to `/tmp/`, invokes `tauri-pilot run <file>`, and cleans up. This collapses a 10-step spec from 10 `tauri-pilot` invocations to 1.
 
 **Setup requirement**: run `bun install` from the repo root before running gauge tests — this links the `@wow-silicon/tsconfig` workspace package.
 

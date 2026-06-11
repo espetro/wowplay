@@ -46,6 +46,10 @@ export class TauriPilotFlow {
     return this;
   }
 
+  stepCount(): number {
+    return this.steps.length;
+  }
+
   run(): void {
     const toml = this.serialize();
     const file = join(tmpdir(), `gauge-flow-${Date.now()}.toml`);

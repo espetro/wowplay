@@ -29,6 +29,7 @@ fn main() {
             commands::config::set_config,
             commands::diagnostics::check_runners,
             commands::setup::run_setup,
+            commands::setup::run_reset,
             commands::launch::launch_wow,
             commands::setup::validate_wow_dir,
             commands::config::reset_config,

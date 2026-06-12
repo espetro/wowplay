@@ -5,6 +5,8 @@ use serde::Serialize;
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
+use wow_silicon_core::reset::ResetOrchestrator;
+
 use crate::error::CommandError;
 use crate::logging::make_log_path;
 
@@ -85,6 +87,29 @@ pub async fn run_setup(
     }
 
     Ok(SetupResult {
+        success: true,
+        messages,
+    })
+}
+
+/// Result of running the reset sequence.
+#[derive(Debug, Clone, Serialize)]
+pub struct ResetResult {
+    pub success: bool,
+    pub messages: Vec<String>,
+}
+
+/// Removes all wowplay patches and staged files.
+#[tauri::command]
+pub async fn run_reset(wow_dir: String) -> Result<ResetResult, CommandError> {
+    let path = PathBuf::from(wow_dir);
+
+    let messages = tauri::async_runtime::spawn_blocking(move || ResetOrchestrator::run(&path))
+        .await
+        .map_err(|e| CommandError::from(format!("reset task panicked: {e}")))?
+        .map_err(|e| CommandError::from(e.to_string()))?;
+
+    Ok(ResetResult {
         success: true,
         messages,
     })

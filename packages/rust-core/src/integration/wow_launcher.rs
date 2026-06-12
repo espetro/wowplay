@@ -9,6 +9,79 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+/// Rosetta offset values for a specific macOS/Rosetta runtime version.
+struct RosettaOffsets {
+    exports_fetch: u64,
+    svc_call_entry: u64,
+    svc_call_ret: u64,
+    disable_aot: u64,
+}
+
+impl RosettaOffsets {
+    /// Returns environment variables for passing offsets to runtime_loader.
+    fn to_env_vars(&self) -> Vec<(String, String)> {
+        vec![
+            ("ROSETTA_X87_OFFSET_EXPORTS_FETCH".to_string(), format!("0x{:X}", self.exports_fetch)),
+            ("ROSETTA_X87_OFFSET_SVC_CALL_ENTRY".to_string(), format!("0x{:X}", self.svc_call_entry)),
+            ("ROSETTA_X87_OFFSET_SVC_CALL_RET".to_string(), format!("0x{:X}", self.svc_call_ret)),
+            ("ROSETTA_X87_OFFSET_DISABLE_AOT".to_string(), format!("0x{:X}", self.disable_aot)),
+        ]
+    }
+}
+
+/// Known Rosetta offsets for different macOS versions.
+/// MD5 values are prefixes of the full hash (first 8 bytes shown).
+fn get_rosetta_offsets(md5_prefix: &str) -> Option<RosettaOffsets> {
+    match md5_prefix {
+        // macOS 26.5 (Rosetta runtime with MD5 prefix 48dccf9f...)
+        "48DCCF9F" => Some(RosettaOffsets {
+            exports_fetch: 0xD91C,
+            svc_call_entry: 0x19D8,
+            svc_call_ret: 0x19D8 + 0xC,  // 0x1A4
+            disable_aot: 0x149AC,
+        }),
+        // macOS 26.0 defaults (MD5 d7819a04...)
+        "D7819A04" => Some(RosettaOffsets {
+            exports_fetch: 0xFA8C,
+            svc_call_entry: 0x1998,
+            svc_call_ret: 0x1998 + 0xC,
+            disable_aot: 0x0,  // Not computed for 26.0
+        }),
+        _ => None,
+    }
+}
+
+/// Computes the MD5 prefix of the Rosetta runtime file.
+/// Returns the first 8 hex characters (8 bytes / 16 hex chars) of the MD5 hash.
+fn compute_rosetta_runtime_md5() -> Option<String> {
+    let runtime_path = "/usr/libexec/rosetta/runtime";
+    if !Path::new(runtime_path).exists() {
+        return None;
+    }
+
+    let output = Command::new("md5")
+        .arg("-r")
+        .arg(runtime_path)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let md5_str = String::from_utf8_lossy(&output.stdout);
+    // md5 -r outputs: "48dccf9f...  /usr/libexec/rosetta/runtime"
+    let hash = md5_str.split_whitespace().next()?;
+    Some(hash[..8].to_uppercase())
+}
+
+/// Builds environment variables with Rosetta offset values if determinable.
+fn build_rosetta_offset_env() -> Option<Vec<(String, String)>> {
+    let md5_prefix = compute_rosetta_runtime_md5()?;
+    let offsets = get_rosetta_offsets(&md5_prefix)?;
+    Some(offsets.to_env_vars())
+}
+
 use crate::adapters::errors::LaunchError;
 use crate::ports::launcher::WowLauncherPort;
 use crate::ports::runner::RunnerPort;
@@ -118,6 +191,12 @@ impl WowLauncher {
         cmd.arg(&loader).arg(&wow_exe).current_dir(wow_dir);
         for (k, v) in env_vars {
             cmd.env(k, v);
+        }
+        // Pass correct Rosetta offsets for this macOS version
+        if let Some(rosetta_env) = build_rosetta_offset_env() {
+            for (k, v) in rosetta_env {
+                cmd.env(k, v);
+            }
         }
 
         let (child, log_threads) = if let Some(log_path) = log_path {

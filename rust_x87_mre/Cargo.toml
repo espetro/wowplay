@@ -1,0 +1,28 @@
+[package]
+name = "rust_x87_mre"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rust_x87_mre"
+path = "src/hot_path.rs"
+
+[[bench]]
+name = "hot_path_benchmark"
+harness = false
+
+[dependencies]
+libc = "0.2"
+which = "6"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[workspace]
+
+[profile.release]
+opt-level = 3
+lto = true

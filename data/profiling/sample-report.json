@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-01-01T00:00:00Z",
+  "wow_version": "3.3.5a",
+  "profile_duration_seconds": 300,
+  "hot_functions": [
+    {
+      "rank": 1,
+      "address_hex": "0x0058F1C0",
+      "estimated_name": "CPlayer::Update",
+      "source": "frida",
+      "sample_count": 0,
+      "x87_call_count": 4821
+    },
+    {
+      "rank": 2,
+      "address_hex": "0x0073A920",
+      "estimated_name": "CMap::LoadMapTile",
+      "source": "combined",
+      "sample_count": 142,
+      "x87_call_count": 3102
+    }
+  ],
+  "x87_summary": {
+    "total_x87_calls": 11720,
+    "by_function": {
+      "fld": 4821,
+      "fstp": 3102,
+      "fadd": 1876,
+      "fsqrt": 1221,
+      "fxch": 700
+    },
+    "by_module": {
+      "WoW.exe": 11000,
+      "msvcrt.dll": 720
+    }
+  },
+  "environment": {
+    "macos_version": "15.0",
+    "arch": "arm64"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-01-01T00:00:00Z",
+  "wow_version": "3.3.5a",
+  "profile_duration_seconds": 300,
+  "hot_functions": [],
+  "x87_summary": {
+    "total_x87_calls": 10000,
+    "by_function": {"fld": 4000, "fstp": 3000, "fadd": 2000, "fsqrt": 1000},
+    "by_module": {}
+  },
+  "environment": {"macos_version": "15.0", "arch": "arm64"}
+}

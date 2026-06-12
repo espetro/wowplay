@@ -1,0 +1,20 @@
+# Rust x87 MRE benchmark runner
+default:
+    @just --list
+
+build:
+    cargo build --release
+
+run:
+    cargo run --release
+
+bench:
+    cargo bench
+
+check:
+    cargo check --all-targets
+
+# Rebuild MRE from latest profiling report
+regenerate REPORT="data/profiling/profiling-report-latest.json":
+    python3 ../tools/profiler/build_mre.py {{REPORT}} --output .
+    cargo check

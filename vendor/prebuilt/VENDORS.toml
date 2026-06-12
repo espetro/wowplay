@@ -1,0 +1,16 @@
+[d9vk]
+upstream     = "Gcenx/DXVK-macOS"
+pinned_tag   = "v1.10.3-20230507-repack"
+fetch_type   = "release_tarball"
+asset_filter = "builtin.tar.gz"
+inner_path   = "x32/d3d9.dll"
+local_path   = "d9vk/d3d9.dll"
+notes        = "DirectX 9 → Vulkan/MoltenVK; zlib/libpng"
+
+[libSiliconPatch_wotlk]
+upstream   = "WoWSilicon/WoWSilicon"
+pinned_tag = "v2.5.4"
+fetch_type = "repo_file"
+repo_path  = "Sources/WoWSiliconSwift/Resources/Patching/libSiliconPatch/wotlk/libSiliconPatch.dll"
+local_path = "libSiliconPatch/wotlk/libSiliconPatch.dll"
+notes      = "Closed-source x87 patch; opt-in only"

@@ -1,11 +1,12 @@
 //! Setup orchestrator — one-time setup for WoW on Apple Silicon.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Serialize;
 
 use crate::adapters::errors::LaunchError;
 use crate::integration::crossover::{apply_game_patch, create_wineloader2, find_crossover};
+use crate::options::SetupOptions;
 use crate::resources::{resolve_patching_dir, stage_bundled_resources};
 use crate::runner_registry::RunnerRegistry;
 
@@ -31,11 +32,7 @@ impl SetupOrchestrator {
     /// 1. Stage bundled patching resources to `~/.local/share/wowplay/patching`
     /// 2. Create wineloader2 (CrossOver unsigned loader copy)
     /// 3. Apply game patch (DLLs, rosettax87 binaries, dlls.txt)
-    pub fn run(
-        wow_dir: &Path,
-        patching_dir: Option<PathBuf>,
-        enable_lib_silicon: bool,
-    ) -> Result<Vec<String>, LaunchError> {
+    pub fn run(options: &SetupOptions) -> Result<Vec<String>, LaunchError> {
         let mut messages = Vec::new();
 
         // Stage bundled resources
@@ -55,8 +52,8 @@ impl SetupOrchestrator {
         }
 
         // Apply game patch
-        let resources = resolve_patching_dir(patching_dir)?;
-        apply_game_patch(wow_dir, &resources, enable_lib_silicon)?;
+        let resources = resolve_patching_dir(options.patching_dir.clone())?;
+        apply_game_patch(&options.wow_dir, &resources, options.enable_lib_silicon)?;
         messages.push("game patch applied".to_string());
 
         Ok(messages)

@@ -6,6 +6,16 @@ pre-commit:
     rust-clippy:
       glob: "packages/rust-core/**/*.rs"
       run: cargo clippy --manifest-path packages/rust-core/Cargo.toml -- -D warnings
+    cli-clippy:
+      glob: "packages/cli/**/*.rs"
+      run: cargo clippy --manifest-path packages/cli/Cargo.toml -- -D warnings
+    gui-clippy:
+      glob: "packages/gui/src/**/*.rs"
+      run: cargo clippy --manifest-path packages/gui/Cargo.toml -- -D warnings
     zig-fmt:
       glob: "packages/zig-glue/**/*.zig"
       run: zig fmt --check packages/zig-glue/build.zig
+    vendor-checksums:
+      glob: "vendor/prebuilt/**"
+      root: "vendor/prebuilt"
+      run: shasum -a 256 --check CHECKSUMS.sha256 || echo "WARNING: vendor checksum mismatch — run scripts/update-vendors.sh to resync"

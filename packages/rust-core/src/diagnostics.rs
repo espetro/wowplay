@@ -1,12 +1,13 @@
 //! Diagnostics — structured environment checklist for WoW on Apple Silicon.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Serialize;
 
 use crate::adapters::errors::LaunchError;
 use crate::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
 use crate::integration::crossover::{find_crossover, is_rosetta_service_running, wineloader2_path};
+use crate::options::DiagnoseOptions;
 use crate::resources::resolve_patching_dir;
 use crate::setup::{RunnerCheck, SetupOrchestrator};
 
@@ -35,12 +36,9 @@ pub struct DiagnosticsReport {
 
 /// Runs the full diagnostics checklist and returns a structured report.
 ///
-/// `wow_dir` is optional — when provided, DivxDecoder checks are included.
-/// `patching_dir` is optional — when provided, skips auto-detection.
-pub fn run_checklist(
-    wow_dir: Option<&Path>,
-    patching_dir: Option<PathBuf>,
-) -> Result<DiagnosticsReport, LaunchError> {
+/// `options.wow_dir` is optional — when provided, DivxDecoder checks are included.
+/// `options.patching_dir` is optional — when provided, skips auto-detection.
+pub fn run_checklist(options: &DiagnoseOptions) -> Result<DiagnosticsReport, LaunchError> {
     // CrossOver
     let crossover = match find_crossover() {
         Ok(p) => Some(p.display().to_string()),
@@ -60,7 +58,7 @@ pub fn run_checklist(
     };
 
     // Patching resources
-    let patching_dir_result = match resolve_patching_dir(patching_dir) {
+    let patching_dir_result = match resolve_patching_dir(options.patching_dir.clone()) {
         Ok(res) => {
             if res.exists() {
                 Some(res.display().to_string())
@@ -87,7 +85,9 @@ pub fn run_checklist(
     };
 
     // DivxDecoder (only if wow_dir provided)
-    let (divxdecoder_patched, divxdecoder_found) = wow_dir
+    let (divxdecoder_patched, divxdecoder_found) = options
+        .wow_dir
+        .as_deref()
         .map(|dir| {
             let patched = dir.join("DivxDecoder.dll.bak").exists();
             let found = dir.join("DivxDecoder.dll").exists();

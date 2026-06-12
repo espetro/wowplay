@@ -34,6 +34,34 @@ pub struct WowLauncher {
 }
 
 impl WowLauncher {
+    /// Create a fully configured launcher from a [`crate::options::LaunchOptions`] struct.
+    ///
+    /// Resolves the runner via [`crate::runner_registry::RunnerRegistry`] and the patching
+    /// resources via [`crate::resources::resolve_patching_dir`], then applies builder options.
+    pub fn from_options(options: crate::options::LaunchOptions) -> Result<Self, LaunchError> {
+        let runner: Arc<dyn RunnerPort> = if options.runner == "whisky" {
+            if let Some(bundle) = options.whisky_bundle {
+                Arc::new(crate::adapters::whisky_adapter::WhiskyAdapter::new(bundle))
+            } else {
+                crate::runner_registry::RunnerRegistry::resolve(&options.runner)?
+            }
+        } else {
+            crate::runner_registry::RunnerRegistry::resolve(&options.runner)?
+        };
+
+        let resources = crate::resources::resolve_patching_dir(options.patching_dir)?;
+
+        let mut launcher = WowLauncher::new(runner, resources, &options.bottle);
+        if let Some(bin_dir) = options.rosettax87_bin_dir {
+            launcher = launcher.with_rosettax87_bin_dir(bin_dir);
+        }
+        if options.enable_lib_silicon {
+            launcher = launcher.with_enable_lib_silicon(true);
+        }
+
+        Ok(launcher)
+    }
+
     /// Create a launcher with the given runner and resources.
     ///
     /// `enable_lib_silicon` defaults to `false` — set to `true` via `with_enable_lib_silicon` to

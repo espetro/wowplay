@@ -21,96 +21,91 @@ We CALL existing libraries, we don't modify them:
 
 ## Architecture Layers
 
-### 1. Domain Layer (Rust Core)
-Contains business logic and Port definitions:
+```
+rust-core  (domain + use-case DTOs + secondary ports)
+    ↑ Rust API (compiler-enforced)     ↑ Rust API (compiler-enforced)
+CLI (clap → DTOs → core)        GUI Backend (JSON → DTOs → core)
+                                          ↑ Tauri IPC (type-generated via specta)
+                                   GUI Frontend (TypeScript — types from gen/bindings.ts)
+```
+
+### 1. Domain Layer (rust-core)
+Contains business logic, port definitions, and use-case DTOs:
 
 ```rust
-// Ports define the contract
-pub trait RosettaTranslationPort: Send + Sync {
-    fn translate_x87_instruction(&self, bytes: &[u8]) -> Result<Vec<u8>, TranslationError>;
-}
+// Ports define the secondary-side contracts
+pub trait RunnerPort: Send + Sync { ... }
+pub trait RosettaTranslationPort: Send + Sync { ... }
+pub trait WineIntegrationPort: Send + Sync { ... }
 
-// Domain logic uses ports
-pub struct X87Translator {
-    rosetta: Arc<dyn RosettaTranslationPort>,
-}
+// Use-case DTOs — the primary-side contracts (see Primary Adapters below)
+pub struct LaunchOptions { ... }
+pub struct SetupOptions { ... }
+pub struct DiagnoseOptions { ... }
 ```
 
 ### 2. Adapter Layer
-Wraps external libraries to implement Ports:
+Wraps external libraries to implement ports:
 
 ```rust
-pub struct Rosettax87Adapter {
-    library: libloading::Library,
-}
-
-impl RosettaTranslationPort for Rosettax87Adapter {
-    fn translate_x87_instruction(&self, bytes: &[u8]) -> Result<Vec<u8>, TranslationError> {
-        unsafe {
-            let func = self.library.get("rosettax87_translate")?;
-            // Call external library
-        }
-    }
-}
+pub struct Rosettax87Adapter { ... }  // implements RosettaTranslationPort
+pub struct CrossOverAdapter { ... }   // implements RunnerPort
+pub struct WhiskyAdapter { ... }      // implements RunnerPort
 ```
 
 ### 3. Integration Layer
-Launches WoW, manages process, injects monitoring:
+Orchestrates a full WoW session (`WowLauncher`) or one-time setup (`SetupOrchestrator`):
 
 ```rust
-pub struct CrossoverLauncher {
-    bottle_path: PathBuf,
-    wine_port: Arc<dyn WineIntegrationPort>,
-    rosetta_port: Arc<dyn RosettaTranslationPort>,
+pub struct WowLauncher {
+    runner: Arc<dyn RunnerPort>,
+    ...
+}
+impl WowLauncher {
+    pub fn from_options(options: LaunchOptions) -> Result<Self, LaunchError> { ... }
+    pub fn launch_wow_logged(&self, wow_dir: &Path, log_path: Option<&Path>) -> Result<WowSession, LaunchError> { ... }
 }
 ```
 
-## Benefits
+## Primary Adapters
 
-### Testability
-- Mock ports for unit tests
-- Real adapters for integration tests
-- Headless MRE tests require no running WoW
+```
+┌──────────────────────────────────────────────────────────┐
+│               Hexagonal Architecture                      │
+│                                                           │
+│  Primary Adapters (Driving)   │   Secondary Adapters      │
+│  ─────────────────────────    │   (Driven)                │
+│  CLI (clap → DTOs)            │   CrossOverAdapter        │
+│  GUI Backend (JSON → DTOs)    │   WhiskyAdapter           │
+│              ↓                │   Rosettax87JitAdapter    │
+│         Use-Case DTOs         │          ↑                │
+│  LaunchOptions / SetupOptions │   Secondary Ports         │
+│  DiagnoseOptions              │   RunnerPort              │
+│              ↓                │   RosettaTranslationPort  │
+│         Domain / Core Logic   │   WineIntegrationPort     │
+└──────────────────────────────────────────────────────────┘
+```
 
-### Composability
-- Mix and match library implementations
-- Swap adapters without changing domain logic
-- Progressive replacement of closed-source components
+`LaunchOptions`, `SetupOptions`, and `DiagnoseOptions` (in `rust-core/src/options.rs`) are the **use-case DTOs** — the formal primary-port contracts. The convention is:
 
-### Agent-First Development
-- Clear boundaries between layers
-- Each layer has its own AGENTS.md
-- Atomic changes within well-defined scopes
+> Any new adapter (REST API, TUI, test harness) that wants to call core creates one of these structs and calls the matching function — no other wiring needed.
 
-## Port Definitions
+The CLI and GUI are the two current primary adapters:
+- **CLI** translates clap args → DTO → core
+- **GUI Backend** translates Tauri IPC JSON → DTO → core
 
-### RosettaTranslationPort
-Interface for x87 to AArch64 translation:
-- `translate_x87_instruction`: Translate individual x87 instructions
-- `get_cached_translation`: Retrieve cached translations
-- `cache_translation`: Store translation results
+The GUI Backend no longer spawns `wowplay` as a subprocess — it calls core directly via `WowLauncher::from_options` and `SetupOrchestrator::run`. This eliminates runtime drift between the two interfaces.
 
-### WineIntegrationPort
-Interface for Wine/CrossOver process management:
-- `get_process_handle`: Get handle to Windows process
-- `inject_dylib`: Inject dynamic library into process
-- `is_initialized`: Check CrossOver state
+## Type Generation Pipeline
 
-### GraphicsTranslationPort
-Interface for graphics translation (d9vk, Metal):
-- `enable_dxvk_translation`: Activate DXVK for DirectX 9
-- `get_graphics_backend`: Query current graphics backend
+TypeScript types for the GUI frontend are generated from Rust types rather than hand-written:
 
-## Adapter Implementations
+1. Rust types derive `specta::Type` (e.g. `AppConfig`, `SetupResult`, `ValidationResult`)
+2. `cargo test --manifest-path packages/gui/Cargo.toml export_bindings` runs the export test in `gui/src/lib.rs`
+3. The test writes `src-frontend/gen/bindings.ts` via `tauri-specta`
+4. `src-frontend/lib/tauri.ts` imports from `gen/bindings.ts` instead of hand-duplicating interfaces
 
-### Rosettax87Adapter
-Wraps rosettax87_jit for x87 instruction translation.
-
-### WinerosettaAdapter
-Wraps winerosetta for Wine/CrossOver integration.
-
-### Future: SiliconPatchAdapter
-Open-source replacement for closed-source libSiliconPatch.
+`gen/bindings.ts` is in `.gitignore` — always regenerate after changing command input/output types.
 
 ## Data Flow
 
@@ -201,7 +196,6 @@ the others are not yet open-sourced or vendored. Full inventory with replacement
 | `winerosetta.dll` | Built by zig-glue from vendored C++ | Open-source (Gcenx/winerosetta) |
 | `mods/libSiliconPatch.dll` (WotLK) | WoWSilicon.app bundle | Closed-source — **optional** (enabled by default; disable via `--disable-lib-silicon`) |
 | `d3d9.dll` | WoWSilicon.app bundle (D9VK) | Open-source — candidate to vendor |
-| `libDllLdr.dll` | WoWSilicon.app bundle | Source unknown — investigate |
 | `rosettax87` + `libRuntimeRosettax87` | WoWSilicon.app bundle | Open-source — candidates to vendor |
 
 ## WoW-specific vs General

@@ -123,7 +123,10 @@ lint:
 validate:
     cd packages/gui && bun run validate
 
-check: fmt-check lint validate
+check-rosetta-freshness:
+    bash scripts/check-rosetta-freshness.sh
+
+check: check-rosetta-freshness fmt-check lint validate
     @echo "✅ All checks passed"
 
 cargo-check:

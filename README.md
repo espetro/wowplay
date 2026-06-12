@@ -53,7 +53,8 @@ wowplay diagnose
 ```bash
 # Install lefthook, Rust, and Zig first, then:
 ./scripts/setup.sh
-cargo build -p wowplay
+just build-cli    # or: cargo build -p wowplay
+just build        # build everything (CLI + GUI + rosettax87_jit)
 ```
 
 ## Troubleshooting

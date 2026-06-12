@@ -31,16 +31,23 @@ The setup script also checks common install locations (Homebrew, `~/.cargo`, `~/
 git clone https://github.com/yourusername/play-wow-on-silicon.git
 cd play-wow-on-silicon
 
-# Run setup (installs Rust components, builds vendor libraries, installs git hooks)
+# Run setup (inits submodules, builds rosettax87_jit via CMake, installs git hooks)
 ./scripts/setup.sh
 ```
 
 This will:
-1. Ensure Rust (`rustup`, `clippy`, `rustfmt`) is installed
-2. Check for Zig (via mise or system)
-3. Initialise and build `vendor/rosettax87_jit` (CMake, Release)
-4. Build `packages/zig-glue/winerosetta.dll` (cross-compiled x86-windows-gnu via Zig)
-5. Install the pre-commit git hook
+1. Initialise and build `vendor/rosettax87_jit` (CMake, Release)
+2. Install the pre-commit git hook via lefthook
+
+## Build
+
+```bash
+# Build CLI (Cargo) — also warns if rosettax87_jit binaries are stale
+cargo build -p wowplay
+
+# Build everything (CLI + GUI sidecar + rosettax87_jit)
+just build
+```
 
 ## Development Workflow
 

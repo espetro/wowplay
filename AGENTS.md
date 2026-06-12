@@ -30,6 +30,16 @@ See docs/profiling-guide.md for WoW profiling workflow (Frida, x87 tracing, CPU 
 ## Release Process
 See docs/release-process.md for versioning workflow, conventional commits, and automated releases via release-plz.
 
+## Build Systems
+
+This project has three build systems that must stay aligned:
+
+- **Cargo** — builds the `wowplay` CLI and Rust core
+- **CMake** (in `vendor/rosettax87_jit/`) — builds `runtime_loader` and `libRuntimeRosettax87`
+- **Zig** (`packages/zig-glue/`) — cross-compiles `winerosetta.dll`
+
+The unified task runner is `just`. Use `just check` before every commit. The `wowplay` binary crate includes a `build.rs` that warns if the CMake binaries are stale.
+
 ## Key Principles
 - Build UPON working libraries, don't replace initially
 - Test-first, agent-first development

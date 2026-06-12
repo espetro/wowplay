@@ -147,11 +147,12 @@ Examples:
 
 ## Pre-Commit Hook
 
-The `scripts/pre-commit.sh` hook enforces:
-1. Rust typecheck (`cargo check`)
-2. Rust linting (`cargo clippy`)
-3. Rust formatting (`cargo fmt --check`)
-4. Zig formatting (`zig fmt --check`)
+The `scripts/pre-commit.sh` hook runs `just check`, which enforces:
+1. rosettax87_jit freshness (CMake binaries newer than source)
+2. Rust formatting (`cargo fmt --check`)
+3. Rust linting (`cargo clippy`)
+4. GUI linting (`bun run lint`)
+5. GUI validation (`bun run validate`)
 
 Run manually: `./scripts/pre-commit.sh`
 

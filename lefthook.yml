@@ -1,11 +1,4 @@
 pre-commit:
   commands:
-    rust-fmt:
-      glob: "packages/rust-core/**/*.rs"
-      run: cargo fmt --check --manifest-path packages/rust-core/Cargo.toml
-    rust-clippy:
-      glob: "packages/rust-core/**/*.rs"
-      run: cargo clippy --manifest-path packages/rust-core/Cargo.toml -- -D warnings
-    zig-fmt:
-      glob: "packages/zig-glue/**/*.zig"
-      run: zig fmt --check packages/zig-glue/build.zig
+    just-check:
+      run: just check

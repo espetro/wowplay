@@ -76,7 +76,6 @@ impl WowLauncher {
         let loader = self.runner.prepare_loader()?;
 
         let rosettax87 = wow_dir.join("rosettax87/rosettax87");
-        Self::bootstrap_divx_decoder(wow_dir, &loader)?;
         Self::ensure_rosetta_service(&rosettax87, self.use_sudo)?;
 
         let wow_exe = Self::find_wow_exe(wow_dir)?;

@@ -57,13 +57,10 @@ pub fn run_wow(
         _ => RunnerRegistry::resolve(&config.runner)?,
     };
 
-    let mut launcher = WowLauncher::new(runner, resources, &config.bottle);
-    if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {
-        launcher = launcher.with_rosettax87_bin_dir(PathBuf::from(bin_dir));
-    }
-    launcher = launcher.with_enable_lib_silicon(config.enable_lib_silicon);
+    let launcher = WowLauncher::new(runner, resources, &config.bottle)
+        .with_enable_lib_silicon(config.enable_lib_silicon);
 
-    launcher.launch_wow_logged(&config.wow_dir, log_path, verbose)
+    launcher.launch_wow_logged(&config.wow_dir, log_path)
 }
 
 pub use crate::integration::wow_launcher::WowSession;

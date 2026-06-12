@@ -77,7 +77,7 @@ export type ValidationResult = {
 /* Tauri Specta runtime */
 async function typedError<T, E>(
   result: Promise<T>,
-): Promise<{ status: "ok" data: T } | { status: "error" error: E }> {
+): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
   try {
     return { status: "ok", data: await result }
   } catch (e) {

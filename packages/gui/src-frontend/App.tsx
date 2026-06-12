@@ -8,8 +8,8 @@ import {
   validateWowDir,
   runSetup,
   launchWow,
-  setConfigKey,
-  runReset,
+  resetConfig,
+  setConfig,
 } from "./lib/tauri"
 import { store, setStore, isSetupComplete, visibleAlerts } from "./stores/app"
 import { RunnerSelect } from "./components/RunnerSelect"
@@ -30,14 +30,11 @@ export default function App() {
   onMount(async () => {
     const configResult = await getConfig()
     configResult.match(
-      (config) => {
-        setStore("config", {
-          runner: config.runner || null,
-          wow_dir: config.wow_dir || null,
-          bottle: config.bottle || "Win10",
-        })
+      async (config) => {
+        setStore("config", config)
         if (config.wow_dir) {
-          validateWowDir(config.wow_dir).match(
+          const validResult = await validateWowDir(config.wow_dir)
+          validResult.match(
             (result) => setValidation(result),
             (err) =>
               setStore("alerts", [
@@ -66,7 +63,7 @@ export default function App() {
 
   async function handleRunnerChange(runner: string) {
     setStore("config", "runner", runner)
-    const result = await setConfigKey("runner", runner)
+    const result = await setConfig(store.config)
     result.match(
       () => {},
       (err) =>
@@ -79,7 +76,7 @@ export default function App() {
   async function handleFolderChange(path: string) {
     setStore("config", "wow_dir", path)
     const [saveResult, validResult] = await Promise.all([
-      setConfigKey("wow_dir", path),
+      setConfig(store.config),
       validateWowDir(path),
     ])
     saveResult.match(
@@ -93,7 +90,9 @@ export default function App() {
       (result) => {
         setValidation(result)
         if (!result.valid) {
-          setStore("alerts", [{ id: "val-err", type: "error", message: result.message }])
+          setStore("alerts", [
+            { id: "val-err", type: "error", message: result.message },
+          ])
         } else {
           setStore("alerts", [])
         }
@@ -132,7 +131,7 @@ export default function App() {
 
   async function handleBottleChange(value: string) {
     setStore("config", "bottle", value)
-    const result = await setConfigKey("bottle", value)
+    const result = await setConfig(store.config)
     result.match(
       () => {},
       (err) =>
@@ -174,24 +173,23 @@ export default function App() {
   async function handleReset() {
     const confirmResult = await ResultAsync.fromPromise(
       confirm(
-        "Reset all patches and configuration?",
-        "This will remove all wowplay patches from your WoW folder and clear configuration.",
+        "Reset all configuration?",
+        "This will clear your runner and game folder settings.",
       ),
       (e) => String(e),
     )
     confirmResult.match(
       (confirmed) => {
-        if (confirmed && store.config.wow_dir) {
-          runReset(store.config.wow_dir).match(
+        if (confirmed) {
+          resetConfig().match(
             () => {
               setStore("config", {
                 runner: null,
                 wow_dir: null,
+                show_alerts: true,
                 bottle: "Win10",
               })
-              setStore("alerts", [
-                { id: "reset-ok", type: "info", message: "Reset complete — patches removed." },
-              ])
+              setStore("alerts", [])
               setValidation({ valid: false, message: "", severity: "info" })
             },
             (err) =>
@@ -199,22 +197,26 @@ export default function App() {
                 { id: "reset-err", type: "error", message: err.message },
               ]),
           )
-        } else if (confirmed && !store.config.wow_dir) {
-          setStore("alerts", [
-            { id: "reset-no-dir", type: "error", message: "No WoW directory configured — cannot reset patches." },
-          ])
         }
       },
       (err) =>
         setStore("alerts", [
-          { id: "confirm-err", type: "error", message: String(err) },
+          { id: "confirm-err", type: "error", message: err },
         ]),
     )
   }
 
-  function handleToggleAlerts() {
+  async function handleToggleAlerts() {
     const newValue = !store.config.show_alerts
     setStore("config", "show_alerts", newValue)
+    const result = await setConfig(store.config)
+    result.match(
+      () => {},
+      (err) =>
+        setStore("alerts", [
+          { id: "save-err", type: "error", message: err.message },
+        ]),
+    )
   }
 
   function handleFeedback() {
@@ -264,11 +266,9 @@ export default function App() {
               <AlertCallout
                 type={alert.type}
                 message={alert.message}
-                onDismiss={
-                  alert.type === "info"
-                    ? () => setStore("alerts", [])
-                    : undefined
-                }
+                {...(alert.type === "info"
+                  ? { onDismiss: () => setStore("alerts", []) }
+                  : {})}
               />
             )}
           </For>

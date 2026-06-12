@@ -125,9 +125,6 @@ impl SetupOrchestrator {
         apply_game_patch(wow_dir, &resources, config.enable_lib_silicon)?;
         messages.push("game patch applied".to_string());
 
-        WowLauncher::bootstrap_divx_decoder(wow_dir)?;
-        messages.push("DivxDecoder.dll patched".to_string());
-
         Ok(messages)
     }
 

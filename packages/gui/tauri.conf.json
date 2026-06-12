@@ -6,7 +6,7 @@
     "frontendDist": "dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "bun run --sequential sidecar dev",
-    "beforeBuildCommand": "bun run --sequential sidecar build"
+    "beforeBuildCommand": "bun run build && bun run sidecar build"
   },
   "app": {
     "windows": [{

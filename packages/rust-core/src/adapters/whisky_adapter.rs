@@ -174,7 +174,9 @@ impl RunnerPort for WhiskyAdapter {
             ),
             ("MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS".into(), "1".into()),
             ("DXVK_ASYNC".into(), "1".into()),
-            ("WINEESYNC".into(), "1".into()),
+            // Disabled: causes "get_object Failed to retrieve fd" warnings that correlate with
+            // ILLEGAL_INSTRUCTION crashes (ERROR #132) when the JIT is active.
+            // ("WINEESYNC".into(), "1".into()),
         ]
     }
 

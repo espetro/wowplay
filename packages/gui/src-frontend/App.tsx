@@ -264,11 +264,9 @@ export default function App() {
               <AlertCallout
                 type={alert.type}
                 message={alert.message}
-                onDismiss={
-                  alert.type === "info"
-                    ? () => setStore("alerts", [])
-                    : undefined
-                }
+                {...(alert.type === "info"
+                  ? { onDismiss: () => setStore("alerts", []) }
+                  : {})}
               />
             )}
           </For>

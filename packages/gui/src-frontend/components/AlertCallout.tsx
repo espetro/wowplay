@@ -4,7 +4,7 @@ import { Show } from "solid-js"
 export interface AlertProps {
   type: "info" | "warning" | "error"
   message: string
-  onDismiss?: () => void | undefined
+  onDismiss?: (() => void) | undefined
 }
 
 export function AlertCallout(props: AlertProps) {

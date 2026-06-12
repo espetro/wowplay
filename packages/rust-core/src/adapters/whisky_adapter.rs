@@ -174,7 +174,6 @@ impl RunnerPort for WhiskyAdapter {
             ),
             ("MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS".into(), "1".into()),
             ("DXVK_ASYNC".into(), "1".into()),
-            ("WINEESYNC".into(), "1".into()),
         ]
     }
 

@@ -13,7 +13,7 @@ wow-silicon-core = { path = "../rust-core" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-specta = { version = "2.0.0-rc.25", features = ["derive"] }
+specta = { version = "2.0.0-rc.25", features = ["derive", "function"] }
 
 [dev-dependencies]
 tempfile = "3"

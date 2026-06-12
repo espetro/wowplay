@@ -7,9 +7,9 @@
     "packages/gui/gauge-tests"
   ],
   "scripts": {
-    "build": "cd packages/gui && bun run build",
-    "dev": "cd packages/gui && bun run tauri:dev",
-    "test": "cargo test --workspace && cd packages/gui && bun run test",
-    "test:gauge": "cd packages/gui && bun run test:gauge"
+    "build": "just build-gui",
+    "dev": "just dev",
+    "test": "just test-all",
+    "test:gauge": "just test-gauge"
   }
 }

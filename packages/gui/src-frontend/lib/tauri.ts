@@ -1,13 +1,11 @@
 import { invoke } from "@tauri-apps/api/core"
 import { ResultAsync } from "neverthrow"
 
-// ── Types (must match wow_silicon_core::config::AppConfig) ──
-
 export interface AppConfig {
-  runner: string
-  wow_dir: string
-  bottle: string
-  enable_lib_silicon: boolean
+  runner: string | null
+  wow_dir: string | null
+  show_alerts: boolean
+  bottle: string | null
 }
 
 export interface RunnerStatus {
@@ -39,6 +37,10 @@ function ipcError(message: string): TauriError {
   return { kind: "ipc", message }
 }
 
+/**
+ * Wraps a Tauri IPC invoke in a ResultAsync.
+ * Never throws — all errors are captured as `TauriError`.
+ */
 function invokeResult<T>(
   cmd: string,
   args?: Record<string, unknown>,
@@ -53,22 +55,13 @@ function invokeResult<T>(
 }
 
 export const getConfig = () => invokeResult<AppConfig>("get_config")
-
-export const setConfigKey = (key: string, value: string) =>
-  invokeResult<string>("set_config", { key, value })
-
-export const listConfig = () => invokeResult<string>("list_config")
-
+export const setConfig = (config: AppConfig) =>
+  invokeResult<void>("set_config", { config })
 export const checkRunners = () => invokeResult<RunnerStatus[]>("check_runners")
-
 export const runSetup = (wowDir: string, runner: string) =>
   invokeResult<SetupResult>("run_setup", { wowDir, runner })
-
 export const launchWow = (wowDir: string, runner: string, bottle: string) =>
   invokeResult<number>("launch_wow", { wowDir, runner, bottle })
-
 export const validateWowDir = (path: string) =>
   invokeResult<ValidationResult>("validate_wow_dir", { path })
-
-export const runReset = (wowDir: string) =>
-  invokeResult<{ success: boolean; messages: string[] }>("run_reset", { wowDir })
+export const resetConfig = () => invokeResult<void>("reset_config")

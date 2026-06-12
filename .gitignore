@@ -10,6 +10,10 @@ target/
 *.pdb
 packages/*/Cargo.lock
 
+# TypeScript
+node_modules/
+dist/
+
 # Zig
 zig-cache/
 .zig-cache/
@@ -31,7 +35,7 @@ __pycache__/
 *.so
 *.a
 *.o
-.zip
+*.zip
 vendor/rosettax87_jit/build/
 packages/gui/binaries/
 packages/gui/patching/*

@@ -22,10 +22,8 @@ pub async fn run_setup(
     wow_dir: String,
     runner: String,
 ) -> Result<SetupResult, CommandError> {
-    let mut args = vec!["setup".to_string(), "--wow-dir".to_string(), wow_dir];
-    if runner == "whisky" || runner == "moonshine" {
-        args.push("--disable-lib-silicon".to_string());
-    }
+    let _ = runner; // kept for Tauri command ABI; frontend passes it
+    let args = vec!["setup".to_string(), "--wow-dir".to_string(), wow_dir];
 
     let (mut rx, _child) = app
         .shell()
@@ -68,7 +66,11 @@ pub async fn run_setup(
 
     // Persist all sidecar output (and any error) to a log file.
     if let Some(log_path) = make_log_path() {
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
             for line in &messages {
                 let _ = writeln!(f, "{line}");
             }

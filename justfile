@@ -138,6 +138,8 @@ release *args:
 
 install:
     bash scripts/release.sh --skip-notarize --skip-upload
+    mkdir -p "${HOME}/.local/share/wowplay"
+    cp -r dist/patching "${HOME}/.local/share/wowplay/patching"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # WoW launch (ported from rosetta-profiler)
@@ -169,11 +171,13 @@ wow-with-patch: wow-patch
 
 # One-time setup with libSiliconPatch
 setup-with-patch:
-    {{WOWPLAY}} setup --wow-dir {{WOW_DIR}} --enable-lib-silicon
+    {{WOWPLAY}} setup --wow-dir {{WOW_DIR}} --enable-lib-silicon \
+      --patching-dir {{justfile_directory()}}/packages/gui/patching
 
 # One-time setup without libSiliconPatch
 setup-sans-patch:
-    {{WOWPLAY}} setup --wow-dir {{WOW_DIR}}
+    {{WOWPLAY}} setup --wow-dir {{WOW_DIR}} \
+      --patching-dir {{justfile_directory()}}/packages/gui/patching
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Profiling (run in a separate terminal while WoW is live)

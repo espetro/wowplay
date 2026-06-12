@@ -18,6 +18,14 @@ pub fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, Launch
         return Ok(p);
     }
 
+    // env var — dev/CI escape hatch without needing --patching-dir flag
+    if let Ok(p) = std::env::var("WOWPLAY_PATCHING_DIR") {
+        let p = PathBuf::from(p);
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+
     // 1. Previously staged by wowplay setup
     let installed = PathBuf::from(std::env::var("HOME").unwrap_or_default())
         .join(".local/share/wowplay/patching");

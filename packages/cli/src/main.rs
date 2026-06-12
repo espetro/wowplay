@@ -257,8 +257,7 @@ fn main() {
             let messages = SetupOrchestrator::run(&wow_dir, patching_dir, !disable_lib_silicon)
                 .unwrap_or_else(|e| {
                     if let Some(ref p) = log_path {
-                        if let Ok(mut f) =
-                            fs::OpenOptions::new().create(true).append(true).open(p)
+                        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
                         {
                             let _ = writeln!(f, "[fail] {e}");
                         }
@@ -341,8 +340,7 @@ fn main() {
                 .launch_wow_logged(&wow_dir, log_path.as_deref())
                 .unwrap_or_else(|e| {
                     if let Some(ref p) = log_path {
-                        if let Ok(mut f) =
-                            fs::OpenOptions::new().create(true).append(true).open(p)
+                        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
                         {
                             let _ = writeln!(f, "[fail] {e}");
                         }

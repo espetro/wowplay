@@ -18,7 +18,7 @@ Working tool for World of Warcraft 3.3.5a on Apple Silicon using a Ports & Adapt
    - tools/launch-diagnostics/AGENTS.md: Launch log classification
 
 2. Before making changes:
-   - Run `scripts/pre-commit.sh` to validate your work
+   - Run `just check` to validate your work (fmt-check + lint + validate)
    - Ensure all checks pass before committing
 
 3. Commit format: Conventional Commits (see docs/git-workflow.md)

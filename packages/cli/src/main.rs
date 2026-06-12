@@ -4,16 +4,21 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
-use wow_silicon_core::adapters::whisky_adapter::WhiskyAdapter;
+use wow_silicon_core::config::TomlConfigStore;
 use wow_silicon_core::diagnostics::run_checklist;
-use wow_silicon_core::integration::wow_launcher::WowLauncher;
-use wow_silicon_core::resources::resolve_patching_dir;
-use wow_silicon_core::runner_registry::RunnerRegistry;
+use wow_silicon_core::reset::ResetOrchestrator;
 use wow_silicon_core::setup::SetupOrchestrator;
+use wow_silicon_core::commands::config::{list_config, set_config};
+use wow_silicon_core::commands::run::{run_wow, RunOverrides};
+
+mod prompt_adapter;
+use prompt_adapter::{DialoguerPrompt, HeadlessPrompt};
 
 #[derive(Parser)]
 #[command(name = "wowplay", about = "Run WoW 3.3.5a on Apple Silicon")]
 struct Cli {
+    #[arg(long, short, global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
     #[command(subcommand)]
     command: Cmd,
 }
@@ -22,19 +27,19 @@ struct Cli {
 enum Cmd {
     /// Launch WoW via rosettax87 + CrossOver (applies patches automatically on first launch)
     Run {
-        /// Path to WoW 3.3.5a game directory
+        /// Override configured runner
+        #[arg(long)]
+        runner: Option<String>,
+        /// Override configured WoW directory
         #[arg(long)]
         wow_dir: Option<PathBuf>,
-        /// Runner to use (default: crossover)
-        #[arg(long, default_value = "crossover")]
-        runner: String,
-        /// CrossOver bottle name (default: Win10)
-        #[arg(long, default_value = "Win10")]
-        bottle: String,
-        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+        /// Override configured bottle
+        #[arg(long)]
+        bottle: Option<String>,
+        /// Path to the patching resources directory (staged, bundled, or explicit override)
         #[arg(long)]
         patching_dir: Option<PathBuf>,
-        /// Deprecated: sudo is no longer required. Kept for backward compatibility.
+        /// Deprecated: sudo is no longer required
         #[arg(long)]
         sudo: bool,
         /// Print diagnostics then exit without launching
@@ -43,34 +48,60 @@ enum Cmd {
         /// Skip log file creation; raw stderr only
         #[arg(long)]
         no_log: bool,
-        /// Explicit path to Whisky.app (only used when --runner whisky)
+        /// Explicit path to Whisky.app (only used when overriding runner to whisky)
         #[arg(long)]
         whisky_bundle: Option<PathBuf>,
-        /// Enable libSiliconPatch.dll (opt-in; off by default)
-        #[arg(long)]
-        enable_lib_silicon: bool,
     },
     /// One-time setup: stage DLLs and create wineloader2
     Setup {
+        /// Path to the patching resources directory (staged, bundled, or explicit override)
+        #[arg(long)]
+        patching_dir: Option<PathBuf>,
+        /// Runner to use without prompting (crossover, whisky, moonshine)
+        #[arg(long)]
+        runner: Option<String>,
+        /// Path to WoW 3.3.5a directory without prompting
+        #[arg(long)]
+        wow_dir: Option<PathBuf>,
+        /// Enable libSiliconPatch without prompting
+        #[arg(long)]
+        enable_lib_silicon: bool,
+    },
+    /// Remove all wowplay patches and staged files (uninstall-like cleanup)
+    Reset {
         /// Path to WoW 3.3.5a game directory
         #[arg(long)]
         wow_dir: PathBuf,
-        /// Path to a WoWSilicon Patching directory (skips app-bundle detection).
-        /// Use vendor/wowsilicon/Sources/WoWSiliconSwift/Resources/Patching from the repo.
+        /// Skip the confirmation prompt
         #[arg(long)]
-        patching_dir: Option<PathBuf>,
-        /// Enable libSiliconPatch.dll (opt-in; off by default)
-        #[arg(long)]
-        enable_lib_silicon: bool,
+        yes: bool,
     },
     /// Print environment checklist and exit
     Diagnose {
         /// WoW directory for DivxDecoder and wineloader2 checks
         #[arg(long)]
         wow_dir: Option<PathBuf>,
-        /// Path to a WoWSilicon Patching directory (skips app-bundle detection)
+        /// Path to the patching resources directory (staged, bundled, or explicit override)
         #[arg(long)]
         patching_dir: Option<PathBuf>,
+    },
+    /// Read and write configuration
+    Config {
+        #[command(subcommand)]
+        cmd: ConfigCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigCmd {
+    /// Print the current configuration
+    List,
+    /// Set a configuration value
+    Set {
+        /// Config key (runner, wow_dir, bottle, enable_lib_silicon)
+        key: String,
+        /// New value
+        value: String,
     },
 }
 
@@ -228,6 +259,7 @@ fn days_to_ymd(days: u32) -> (u32, u32, u32) {
 
 fn main() {
     let cli = Cli::parse();
+    let verbose = cli.verbose;
 
     match cli.command {
         Cmd::Diagnose {
@@ -238,8 +270,9 @@ fn main() {
         }
 
         Cmd::Setup {
-            wow_dir,
             patching_dir,
+            runner,
+            wow_dir,
             enable_lib_silicon,
         } => {
             let log_path = match make_log_path() {
@@ -255,16 +288,80 @@ fn main() {
 
             print_runner_table();
 
-            let messages = SetupOrchestrator::run(&wow_dir, patching_dir, enable_lib_silicon)
-                .unwrap_or_else(|e| {
-                    if let Some(ref p) = log_path {
-                        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
-                        {
-                            let _ = writeln!(f, "[fail] {e}");
-                        }
+            let store = TomlConfigStore::new();
+            let messages = if runner.is_some() || wow_dir.is_some() || enable_lib_silicon {
+                let prompt = HeadlessPrompt {
+                    runner,
+                    wow_dir,
+                    enable_lib_silicon,
+                };
+                SetupOrchestrator::interactive_setup(&prompt, &store, patching_dir)
+            } else {
+                let prompt = DialoguerPrompt;
+                SetupOrchestrator::interactive_setup(&prompt, &store, patching_dir)
+            }
+            .unwrap_or_else(|e| {
+                if let Some(ref p) = log_path {
+                    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
+                    {
+                        let _ = writeln!(f, "[fail] {e}");
                     }
-                    die(&e.to_string())
-                });
+                }
+                die(&e.to_string())
+            });
+
+            if let Some(ref p) = log_path {
+                if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
+                    for msg in &messages {
+                        let _ = writeln!(f, "[ ok ] {msg}");
+                    }
+                }
+            }
+
+            for msg in messages {
+                ok(&msg);
+            }
+            ok("Configured successfully");
+        }
+
+        Cmd::Reset { wow_dir, yes } => {
+            if !yes {
+                warn("This will remove all wowplay patches and staged files:");
+                info("  - restore DivxDecoder.dll / DivxTac.dll from .bak");
+                info("  - remove d3d9.dll, mods/, rosettax87/, dlls.txt");
+                info("  - remove CrossOver wineloader2 copy");
+                info("  - remove ~/.local/share/wowplay/patching");
+                eprint!("  Are you sure? [y/N]: ");
+                std::io::stdout().flush().unwrap();
+                let mut input = String::new();
+                if std::io::stdin().read_line(&mut input).is_err() {
+                    die("could not read confirmation");
+                }
+                let trimmed = input.trim().to_lowercase();
+                if trimmed != "y" && trimmed != "yes" {
+                    die("reset aborted");
+                }
+            }
+
+            let log_path = match make_log_path() {
+                Ok(p) => {
+                    eprintln!("Logs are saved to: {}", p.display());
+                    Some(p)
+                }
+                Err(e) => {
+                    warn(&format!("could not create log file: {e}"));
+                    None
+                }
+            };
+
+            let messages = ResetOrchestrator::run(&wow_dir).unwrap_or_else(|e| {
+                if let Some(ref p) = log_path {
+                    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
+                        let _ = writeln!(f, "[fail] {e}");
+                    }
+                }
+                die(&e.to_string())
+            });
 
             if let Some(ref p) = log_path {
                 if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
@@ -280,47 +377,19 @@ fn main() {
         }
 
         Cmd::Run {
-            wow_dir,
             runner,
+            wow_dir,
             bottle,
             patching_dir,
-            sudo,
+            sudo: _,
             diagnose,
             no_log,
             whisky_bundle,
-            enable_lib_silicon,
         } => {
             if diagnose {
                 run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
                 return;
             }
-
-            let resources =
-                resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            let runner: std::sync::Arc<dyn wow_silicon_core::ports::runner::RunnerPort> =
-                if runner == "whisky" {
-                    if let Some(bundle) = whisky_bundle {
-                        std::sync::Arc::new(WhiskyAdapter::new(bundle))
-                    } else {
-                        RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
-                    }
-                } else {
-                    RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
-                };
-            let mut launcher = WowLauncher::new(runner, resources, &bottle);
-            if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {
-                launcher = launcher.with_rosettax87_bin_dir(PathBuf::from(bin_dir));
-            }
-            if sudo {
-                launcher = launcher.with_sudo();
-            }
-            if enable_lib_silicon {
-                launcher = launcher.with_enable_lib_silicon(true);
-            }
-
-            let wow_dir = wow_dir.unwrap_or_else(|| {
-                die("--wow-dir is required; e.g. wowplay run --wow-dir ~/WoW");
-            });
 
             let log_path = if no_log {
                 None
@@ -338,8 +407,16 @@ fn main() {
                 eprintln!("Logs are saved to: {}", p.display());
             }
 
-            let session = launcher
-                .launch_wow_logged(&wow_dir, log_path.as_deref())
+            let store = TomlConfigStore::new();
+            let overrides = RunOverrides {
+                runner,
+                wow_dir,
+                bottle,
+                patching_dir,
+                whisky_bundle,
+            };
+
+            let session = run_wow(&store, overrides, log_path.as_deref(), verbose > 0)
                 .unwrap_or_else(|e| {
                     if let Some(ref p) = log_path {
                         if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
@@ -351,6 +428,21 @@ fn main() {
                 });
 
             session.wait().unwrap_or_else(|e| die(&e.to_string()));
+        }
+
+        Cmd::Config { cmd } => {
+            let store = TomlConfigStore::new();
+            match cmd {
+                ConfigCmd::List => {
+                    let out = list_config(&store).unwrap_or_else(|e| die(&e.to_string()));
+                    eprintln!("{out}");
+                }
+                ConfigCmd::Set { key, value } => {
+                    let out = set_config(&store, &key, &value)
+                        .unwrap_or_else(|e| die(&e.to_string()));
+                    ok(&out);
+                }
+            }
         }
     }
 }

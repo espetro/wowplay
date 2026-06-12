@@ -68,6 +68,78 @@ impl PromptPort for DialoguerPrompt {
     }
 }
 
+pub struct HeadlessPrompt {
+    pub runner: Option<String>,
+    pub wow_dir: Option<PathBuf>,
+    pub enable_lib_silicon: bool,
+}
+
+impl PromptPort for HeadlessPrompt {
+    fn select_one(
+        &self,
+        _prompt: &str,
+        items: &[PromptItem],
+        default: Option<usize>,
+    ) -> Result<usize, LaunchError> {
+        if let Some(ref name) = self.runner {
+            return items
+                .iter()
+                .position(|i| i.label.eq_ignore_ascii_case(name))
+                .ok_or_else(|| {
+                    LaunchError::SetupFailed(format!(
+                        "unknown runner '{}'; valid: crossover, whisky, moonshine",
+                        name
+                    ))
+                });
+        }
+        default.ok_or_else(|| {
+            LaunchError::SetupFailed("setup requires --runner in non-interactive mode".into())
+        })
+    }
+
+    fn select_many(
+        &self,
+        _prompt: &str,
+        items: &[PromptItem],
+        _defaults: &[bool],
+    ) -> Result<Vec<usize>, LaunchError> {
+        if self.enable_lib_silicon {
+            Ok(items
+                .iter()
+                .enumerate()
+                .filter(|(_, i)| i.label.contains("libSiliconPatch"))
+                .map(|(idx, _)| idx)
+                .collect())
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn input_path(
+        &self,
+        _prompt: &str,
+        must_exist: bool,
+        default: Option<&Path>,
+    ) -> Result<PathBuf, LaunchError> {
+        let path = self
+            .wow_dir
+            .clone()
+            .or_else(|| default.map(|p| p.to_path_buf()))
+            .ok_or_else(|| {
+                LaunchError::SetupFailed(
+                    "setup requires --wow-dir in non-interactive mode".into(),
+                )
+            })?;
+        if must_exist && !path.exists() {
+            return Err(LaunchError::SetupFailed(format!(
+                "wow-dir does not exist: {}",
+                path.display()
+            )));
+        }
+        Ok(path)
+    }
+}
+
 fn format_item(item: &PromptItem) -> String {
     match &item.detail {
         Some(d) => format!("{} — {}", item.label, d),

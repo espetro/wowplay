@@ -1,45 +1,65 @@
 # play-wow-on-silicon — profiling & launch commands
 #
-# Usage:
-#   just                          # list all recipes
-#   just profile                  # profile already-running WoW for 5 min
-#   just profile 30               # profile already-running WoW for 30s
-#   just profile-full             # launch WoW (no patch) → wait → profile → kill → MRE
-#   just profile-full-patch       # same but with libSiliconPatch
-#   just wow-sans-patch           # launch WoW only (no profiling)
-#   just wow-with-patch           # launch WoW with libSiliconPatch only
+# Quick start (two terminals):
+#   just wow          # terminal 1: launch WoW with JIT profiling enabled
+#   just profile 30   # terminal 2: collect 30s sample + dump + analyse
 #
-# x87 profiling requires WoW to be launched with:
-#   ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT=/tmp/rosettax87_profile.json
-# profile-full* set those vars automatically; for profile-run* launch WoW manually with them.
+# Or fully automated (single command):
+#   just profile-full             # launch → wait → profile 5 min → dump → analyse → MRE
+#   just profile-full-patch       # same, with libSiliconPatch
+#
+# Other recipes:
+#   just profile [DURATION]       # profile already-running WoW (default 300s)
+#   just wow-patch                # launch WoW + libSiliconPatch with profiling
+#   just wow-sans-patch           # launch WoW (no patch, no profiling — plain play)
+#   just wow-with-patch           # launch WoW + libSiliconPatch (no profiling — plain play)
 
-WOW_DIR := env_var_or_default("WOW_DIR", env("HOME") + "/Documents/ChromieCraft_3.3.5a")
-DURATION := "300"
-WARMUP := "30"
-RUNNER := env_var_or_default("RUNNER", "whisky")
-PROFILER_DIR := justfile_directory() / "tools/profiler"
-PROFILING_OUT := justfile_directory() / "data/profiling"
-WOWPLAY := justfile_directory() / "target/release/wowplay"
-JIT_PROFILE_OUT := env_var_or_default("ROSETTA_X87_PROFILE_OUT", "/tmp/rosettax87_profile.json")
+WOW_DIR          := env_var_or_default("WOW_DIR", env("HOME") + "/Documents/ChromieCraft_3.3.5a")
+DURATION         := "300"
+WARMUP           := "30"
+RUNNER           := env_var_or_default("RUNNER", "whisky")
+PROFILER_DIR     := justfile_directory() / "tools/profiler"
+PROFILING_OUT    := justfile_directory() / "data/profiling"
+WOWPLAY          := justfile_directory() / "target/release/wowplay"
+JIT_PROFILE_OUT  := env_var_or_default("ROSETTA_X87_PROFILE_OUT", "/tmp/rosettax87_profile.json")
+# Directory containing the instrumented runtime_loader + libRuntimeRosettax87 binaries.
+# Defaults to the local CMake build output; override with ROSETTAX87_BIN_DIR env var.
+ROSETTAX87_BIN_DIR := env_var_or_default("ROSETTAX87_BIN_DIR", justfile_directory() / "vendor/rosettax87_jit/build/bin")
 
 # ------------------------------------------------------------------------------
 # WoW launch
 # ------------------------------------------------------------------------------
 
-# Launch WoW with libSiliconPatch enabled
-wow-with-patch:
+# Launch WoW with JIT x87 profiling enabled (pair with 'just profile' in another terminal)
+wow:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+    ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
+    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}}
+
+# Launch WoW + libSiliconPatch with JIT profiling enabled
+wow-patch:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+    ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
     {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon
 
-# Launch WoW without libSiliconPatch (default)
+# Launch WoW (no patch, no profiling — plain play)
 wow-sans-patch:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}}
+
+# Launch WoW with libSiliconPatch (no profiling — plain play)
+wow-with-patch:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon
 
 # One-time setup with libSiliconPatch
 setup-with-patch:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     {{WOWPLAY}} setup --wow-dir {{WOW_DIR}} --enable-lib-silicon
 
 # One-time setup without libSiliconPatch
 setup-sans-patch:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     {{WOWPLAY}} setup --wow-dir {{WOW_DIR}}
 
 # ------------------------------------------------------------------------------
@@ -67,11 +87,10 @@ profile-run DURATION="300":
     cd {{PROFILER_DIR}} && uv run python3 analyze.py --auto
     @echo "→ Done. Run 'just generate-mre' to build the benchmark crate."
 
-# Quick profile (30s) — for smoke testing
-profile-quick: (profile-run "30")
-
-# Full profile (5 min) — standard run
-profile: (profile-run "300")
+# Profile already-running WoW; DURATION defaults to 300s
+# Usage: just profile        (5 min)
+#        just profile 30     (30 s quick check)
+profile DURATION="300": (profile-run DURATION)
 
 # ------------------------------------------------------------------------------
 # MRE generation
@@ -94,7 +113,8 @@ generate-mre:
 # for DURATION, dump JIT counts, then kill and generate MRE.
 profile-full DURATION="300" WARMUP="30":
     @echo "→ Launching WoW (no libSiliconPatch) with ROSETTA_X87_PROFILE=1..."
-    @ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
+    @ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+        ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
         {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} &> /dev/null & \
         WOW_PID=$$!; \
         echo "→ WoW PID: $$WOW_PID — waiting {{WARMUP}}s for login..."; \
@@ -120,7 +140,8 @@ profile-full DURATION="300" WARMUP="30":
 # Same but with libSiliconPatch enabled
 profile-full-patch DURATION="300" WARMUP="30":
     @echo "→ Launching WoW (with libSiliconPatch) with ROSETTA_X87_PROFILE=1..."
-    @ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
+    @ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+        ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
         {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon &> /dev/null & \
         WOW_PID=$$!; \
         echo "→ WoW PID: $$WOW_PID — waiting {{WARMUP}}s for login..."; \

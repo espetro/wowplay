@@ -1,18 +1,16 @@
 # play-wow-on-silicon — profiling & launch commands
 #
-# Quick start (two terminals):
-#   just wow          # terminal 1: launch WoW with JIT profiling enabled
-#   just profile 30   # terminal 2: collect 30s sample + dump + analyse
+# Daily use:
+#   just wow                      # launch WoW (instrumented JIT, no profiling overhead)
+#   just wow-patch                # same + libSiliconPatch
 #
-# Or fully automated (single command):
+# Profiling (automated):
 #   just profile-full             # launch → wait → profile 5 min → dump → analyse → MRE
 #   just profile-full-patch       # same, with libSiliconPatch
 #
-# Other recipes:
-#   just profile [DURATION]       # profile already-running WoW (default 300s)
-#   just wow-patch                # launch WoW + libSiliconPatch with profiling
-#   just wow-sans-patch           # launch WoW (no patch, no profiling — plain play)
-#   just wow-with-patch           # launch WoW + libSiliconPatch (no profiling — plain play)
+# Profiling (manual, two terminals):
+#   just wow-profiled             # terminal 1: launch WoW with ROSETTA_X87_PROFILE=1
+#   just profile 30               # terminal 2: collect 30s sample + dump + analyse
 
 WOW_DIR          := env_var_or_default("WOW_DIR", env("HOME") + "/Documents/ChromieCraft_3.3.5a")
 DURATION         := "300"
@@ -30,36 +28,36 @@ ROSETTAX87_BIN_DIR := env_var_or_default("ROSETTAX87_BIN_DIR", justfile_director
 # WoW launch
 # ------------------------------------------------------------------------------
 
-# Launch WoW with JIT x87 profiling enabled (pair with 'just profile' in another terminal)
+# Launch WoW — production rosettax87 from vendor/wowsilicon (daily use)
 wow:
-    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
-    ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
     {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}}
 
-# Launch WoW + libSiliconPatch with JIT profiling enabled
+# Launch WoW + libSiliconPatch (daily use)
 wow-patch:
+    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon
+
+# Launch WoW with ROSETTA_X87_PROFILE=1 — pair with 'just profile' in another terminal
+wow-profiled:
+    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
+    ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
+    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}}
+
+# Launch WoW + libSiliconPatch with profiling enabled
+wow-profiled-patch:
     ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT={{JIT_PROFILE_OUT}} \
     {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon
 
-# Launch WoW (no patch, no profiling — plain play)
-wow-sans-patch:
-    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
-    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}}
-
-# Launch WoW with libSiliconPatch (no profiling — plain play)
-wow-with-patch:
-    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
-    {{WOWPLAY}} run --wow-dir {{WOW_DIR}} --runner {{RUNNER}} --enable-lib-silicon
+# Aliases kept for backward compat
+wow-sans-patch: wow
+wow-with-patch: wow-patch
 
 # One-time setup with libSiliconPatch
 setup-with-patch:
-    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     {{WOWPLAY}} setup --wow-dir {{WOW_DIR}} --enable-lib-silicon
 
 # One-time setup without libSiliconPatch
 setup-sans-patch:
-    ROSETTAX87_BIN_DIR={{ROSETTAX87_BIN_DIR}} \
     {{WOWPLAY}} setup --wow-dir {{WOW_DIR}}
 
 # ------------------------------------------------------------------------------

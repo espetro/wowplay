@@ -39,49 +39,11 @@ memory_range_end = "0x00800000"
 version = "3.3.5a"
 build = "12340"
 
-[frida]
-# Frida-specific settings
-# Enable Wine address filtering (distinguish WoW x87 from Wine x87)
-filter_wine_addresses = true
-
-# Modules to trace for x87 calls
-x87_modules = ["msvcrt.dll", "msvcrt40.dll"]
-
-# D3D9 modules to trace
-d3d9_modules = ["d3d9.dll"]
-
-# Functions to hook for x87 tracing
-x87_functions = [
-    "sin",
-    "cos",
-    "tan",
-    "sqrt",
-    "pow",
-    "floor",
-    "ceil",
-    "fmod",
-    "_ftol",
-    "_ftol2",
-    "atan2",
-    "log",
-    "log10",
-    "exp",
-]
-
-# D3D9 functions to trace
-d3d9_functions = [
-    "DrawPrimitive",
-    "DrawIndexedPrimitive",
-    "SetStreamSource",
-    "SetTransform",
-]
+[jit_profile]
+# Path where rosettax87_jit writes opcode counts when ROSETTA_X87_PROFILE=1.
+# Must match ROSETTA_X87_PROFILE_OUT set at WoW launch time.
+profile_out = "/tmp/rosettax87_profile.json"
 
 [sampling]
-# Fall back to `sample` command if Frida fails (SIP/hardened runtime)
-use_sample_fallback = false
-
-# Number of sample iterations for fallback mode
-sample_iterations = 300
-
 # Parse sample output for these modules (libSiliconPatch.dll is optional)
 sample_modules = ["WoW.exe", "libSiliconPatch.dll"]

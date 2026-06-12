@@ -52,23 +52,23 @@ def find_wine_processes() -> list[dict]:
     except subprocess.CalledProcessError as e:
         print(f"Error running ps: {e}", file=sys.stderr)
         return []
-    
+
     processes = []
     for line in result.stdout.strip().split("\n")[1:]:  # Skip header
         parts = line.split(None, 3)
         if len(parts) < 4:
             continue
-        
+
         pid, ppid, comm, args = parts
         # Wine processes are typically wine64-preloader, wine, or wine64
-        if comm in ("wine64-preloader", "wine", "wine64") or "wine" in args.lower():
+        if comm in ("wine64-preloader", "wine", "wine64", " Wineserver", "runtime_loader") or "wine" in args.lower():
             processes.append({
                 "pid": int(pid),
                 "ppid": int(ppid),
                 "comm": comm,
                 "args": args,
             })
-    
+
     return processes
 
 
@@ -113,11 +113,19 @@ def find_wow_process(config: dict) -> int:
         )
     
     if len(wow_processes) > 1:
-        pids = [p["pid"] for p in wow_processes]
-        raise RuntimeError(
-            f"Multiple WoW processes found: {pids}. "
-            "Please ensure only one WoW instance is running."
+        # wine64-preloader is the actual Wine host (has Windows DLLs); runtime_loader is
+        # the x87 JIT shim — prefer by basename so full-path comms (Whisky) still match.
+        _COMM_PRIORITY = {"wine64-preloader": 0, "wine64": 1, "wine": 2}
+        wow_processes.sort(
+            key=lambda p: (_COMM_PRIORITY.get(os.path.basename(p["comm"]), 99), p["pid"])
         )
+        chosen = wow_processes[0]
+        print(
+            f"Multiple WoW processes found ({[p['pid'] for p in wow_processes]}), "
+            f"using PID {chosen['pid']} ({os.path.basename(chosen['comm'])})",
+            file=sys.stderr,
+        )
+        return chosen["pid"]
     
     return wow_processes[0]["pid"]
 

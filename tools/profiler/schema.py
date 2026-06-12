@@ -190,78 +190,99 @@ def create_report(
 
 
 def merge_reports(
-    x87_trace_data: dict,
     cpu_sample_data: dict,
+    x87_trace_data: Optional[dict] = None,
+    jit_opcode_counts: Optional[dict] = None,
     address_map: Optional[dict] = None,
     wow_version: str = "3.3.5a",
     profile_duration_seconds: int = 300,
 ) -> dict:
     """
-    Merge x87 trace data and CPU sample data into a ranked report.
-    
-    Args:
-        x87_trace_data: Raw x87 trace output from trace_x87.py
-        cpu_sample_data: Parsed CPU sample data from sample_cpu.py
-        address_map: Optional mapping of addresses to function names
-        wow_version: WoW client version
-        profile_duration_seconds: Duration of profiling session
-        
-    Returns:
-        A complete profiling report
+    Merge profiling data into a ranked report.
+
+    x87 data sources (use one or neither):
+        jit_opcode_counts: dict mapping opcode names to counts, from ROSETTA_X87_PROFILE=1.
+                           Provides exact per-opcode translation frequencies.
+        x87_trace_data:    Legacy Frida-format trace with per-address call lists.
+
+    cpu_sample_data is always required (macOS `sample` output from sample_cpu.py).
     """
     address_map = address_map or {}
-    
-    # Aggregate x87 calls by return address
-    x87_by_address = {}
-    x87_by_function = {}
-    x87_by_module = {}
-    
-    for entry in x87_trace_data.get("calls", []):
-        ret_addr = entry.get("ret_addr", "0x0")
-        func = entry.get("func", "unknown")
-        module = entry.get("module", "unknown")
-        
-        x87_by_address[ret_addr] = x87_by_address.get(ret_addr, 0) + 1
-        x87_by_function[func] = x87_by_function.get(func, 0) + 1
-        x87_by_module[module] = x87_by_module.get(module, 0) + 1
-    
-    # Aggregate CPU samples by address
-    cpu_by_address = {}
+
+    # --- CPU samples (always present) ---
+    cpu_by_address: dict[str, int] = {}
     for entry in cpu_sample_data.get("samples", []):
         addr = entry.get("address_hex", "0x0")
         count = entry.get("sample_count", 0)
         cpu_by_address[addr] = cpu_by_address.get(addr, 0) + count
-    
-    # Combine and rank
+
+    # --- x87 summary ---
+    if jit_opcode_counts is not None:
+        # JIT path: exact per-opcode counts; no per-address breakdown.
+        # by_function is repurposed as by_opcode for MRE weighting.
+        total_x87 = sum(jit_opcode_counts.values())
+        x87_summary = {
+            "total_x87_calls": total_x87,
+            "by_function": dict(jit_opcode_counts),
+            "by_module": {},
+        }
+        x87_by_address: dict[str, int] = {}
+    elif x87_trace_data is not None:
+        # Legacy Frida path: per-address x87 call lists.
+        x87_by_address = {}
+        x87_by_function: dict[str, int] = {}
+        x87_by_module: dict[str, int] = {}
+        for entry in x87_trace_data.get("calls", []):
+            ret_addr = entry.get("ret_addr", "0x0")
+            func = entry.get("func", "unknown")
+            module = entry.get("module", "unknown")
+            x87_by_address[ret_addr] = x87_by_address.get(ret_addr, 0) + 1
+            x87_by_function[func] = x87_by_function.get(func, 0) + 1
+            x87_by_module[module] = x87_by_module.get(module, 0) + 1
+        total_x87 = sum(x87_by_function.values())
+        x87_summary = {
+            "total_x87_calls": total_x87,
+            "by_function": x87_by_function,
+            "by_module": x87_by_module,
+        }
+    else:
+        # CPU-only mode: no x87 data.
+        x87_by_address = {}
+        x87_summary = {"total_x87_calls": 0, "by_function": {}, "by_module": {}}
+
+    # --- hot_functions: ranked by CPU sample count ---
     all_addresses = set(x87_by_address.keys()) | set(cpu_by_address.keys())
-    
+
     hot_functions = []
-    for rank, addr in enumerate(sorted(all_addresses, key=lambda a: (
-        x87_by_address.get(a, 0) * (1 + cpu_by_address.get(a, 0))
-    ), reverse=True), start=1):
+    for rank, addr in enumerate(
+        sorted(
+            all_addresses,
+            key=lambda a: x87_by_address.get(a, 0) * (1 + cpu_by_address.get(a, 0)),
+            reverse=True,
+        ),
+        start=1,
+    ):
         x87_count = x87_by_address.get(addr, 0)
         cpu_count = cpu_by_address.get(addr, 0)
-        
-        # Look up function name from address map
         estimated_name = address_map.get(addr, f"sub_{addr}")
-        
-        # Determine primary source
+
         if cpu_count > 0 and x87_count > 0:
             source = "combined"
         elif cpu_count > 0:
             source = "instruments"
         else:
             source = "frida"
-        
-        # Get top x87 ops for this address
-        top_ops = []
-        for entry in x87_trace_data.get("calls", []):
-            if entry.get("ret_addr") == addr:
-                op = entry.get("func", "")
-                if op and op not in top_ops:
-                    top_ops.append(op)
-        
-        func_entry = {
+
+        # Top x87 ops for this address (only available from Frida trace)
+        top_ops: list[str] = []
+        if x87_trace_data is not None:
+            for entry in x87_trace_data.get("calls", []):
+                if entry.get("ret_addr") == addr:
+                    op = entry.get("func", "")
+                    if op and op not in top_ops:
+                        top_ops.append(op)
+
+        func_entry: dict = {
             "rank": rank,
             "address_hex": addr,
             "estimated_name": estimated_name,
@@ -269,36 +290,25 @@ def merge_reports(
             "sample_count": cpu_count,
             "x87_call_count": x87_count,
         }
-        
         if top_ops:
-            func_entry["top_x87_ops"] = top_ops[:5]  # Top 5
-        
-        # Add strategy suggestion based on ops
-        if any(op in top_ops for op in ["sin", "cos", "tan"]):
-            func_entry["suggested_strategy"] = "Replace fsin/fcos with SSE lookup table"
-        elif "sqrt" in top_ops:
-            func_entry["suggested_strategy"] = "Replace fsqrt with NEON vsqrt"
-        elif any(op in top_ops for op in ["pow", "exp", "log"]):
-            func_entry["suggested_strategy"] = "Replace fyl2x/f2xm1 with NEON exp/log"
-        
+            func_entry["top_x87_ops"] = top_ops[:5]
+            if any(op in top_ops for op in ["sin", "cos", "tan"]):
+                func_entry["suggested_strategy"] = "Replace fsin/fcos with SSE lookup table"
+            elif "sqrt" in top_ops:
+                func_entry["suggested_strategy"] = "Replace fsqrt with NEON vsqrt"
+            elif any(op in top_ops for op in ["pow", "exp", "log"]):
+                func_entry["suggested_strategy"] = "Replace fyl2x/f2xm1 with NEON exp/log"
+
         hot_functions.append(func_entry)
-    
-    # Build x87 summary
-    total_x87 = sum(x87_by_function.values())
-    x87_summary = {
-        "total_x87_calls": total_x87,
-        "by_function": x87_by_function,
-        "by_module": x87_by_module,
-    }
-    
-    # Build environment info
+
     import platform
+
     environment = {
         "macos_version": platform.mac_ver()[0] or "unknown",
         "crossover_version": cpu_sample_data.get("crossover_version", "unknown"),
         "arch": platform.machine(),
     }
-    
+
     return create_report(
         wow_version=wow_version,
         profile_duration_seconds=profile_duration_seconds,

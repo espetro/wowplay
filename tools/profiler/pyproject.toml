@@ -1,6 +1,6 @@
 [project]
 name = "wow-silicon-profiler"
-version = "0.2.0"
+version = "0.3.0"
 description = "Profiling harness for WoW 3.3.5a on Apple Silicon"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -8,7 +8,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Joaquin Terrasa"},
 ]
-keywords = ["wow", "profiling", "frida", "x87", "apple-silicon"]
+keywords = ["wow", "profiling", "x87", "apple-silicon", "rosetta"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -20,8 +20,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "frida>=16.0.0",
-    "frida-tools>=12.0.0",
     "toml>=0.10.0",
 ]
 
@@ -35,7 +33,7 @@ dev = [
 
 [project.scripts]
 wow-attach = "attach:main"
-wow-trace-x87 = "trace_x87:main"
+wow-ingest-jit = "ingest_jit_counts:main"
 wow-sample-cpu = "sample_cpu:main"
 wow-analyze = "analyze:main"
 

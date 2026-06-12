@@ -2,8 +2,10 @@
 """
 Trace aggregation and ranking analyzer.
 
-Reads raw x87 trace data and CPU sample data, aggregates by return address,
-cross-references with address map, and produces a ranked JSON report.
+Reads JIT opcode counts (ROSETTA_X87_PROFILE=1) and/or CPU sample data,
+cross-references with an address map, and produces a ranked JSON report.
+
+Legacy Frida trace files (raw_trace_*.json) are accepted but no longer required.
 """
 
 import argparse
@@ -15,7 +17,45 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from ingest_jit_counts import load_jit_counts, DEFAULT_JIT_OUT
 from schema import merge_reports, validate_report
+
+
+def extract_hot_path(report: dict) -> dict:
+    """
+    Extract hot-path instruction frequency data from a profiling report.
+    
+    Produces a JSON structure suitable for the MRE builder (build_mre.py).
+    """
+    x87_summary = report.get("x87_summary", {})
+    by_function = x87_summary.get("by_function", {})
+    total = sum(by_function.values())
+    
+    if total == 0:
+        hot_path_instructions = []
+    else:
+        hot_path_instructions = sorted(
+            [
+                {"opcode": k, "count": v, "weight": round(v / total, 6)}
+                for k, v in by_function.items()
+            ],
+            key=lambda x: x["count"],
+            reverse=True,
+        )
+    
+    top_functions = []
+    for func in report.get("hot_functions", [])[:10]:
+        top_functions.append({
+            "address": func.get("address_hex", ""),
+            "name": func.get("estimated_name", ""),
+            "x87_calls": func.get("x87_call_count", 0),
+        })
+    
+    return {
+        "hot_path_instructions": hot_path_instructions,
+        "total_calls": total,
+        "top_functions": top_functions,
+    }
 
 
 def load_json_file(path: Path) -> dict:
@@ -52,47 +92,44 @@ def load_address_map(path: Path) -> dict:
 
 
 def analyze(
-    trace_files: list[Path],
     sample_files: list[Path],
     address_map: dict,
+    trace_files: Optional[list[Path]] = None,
+    jit_counts_file: Optional[Path] = None,
     wow_version: str = "3.3.5a",
     profile_duration_seconds: int = 300,
 ) -> dict:
     """
-    Aggregate traces and samples into a ranked report.
-    
-    Args:
-        trace_files: List of raw trace JSON files
-        sample_files: List of CPU sample JSON files
-        address_map: Mapping of addresses to function names
-        wow_version: WoW client version
-        profile_duration_seconds: Total profiling duration
-        
-    Returns:
-        Complete profiling report
+    Aggregate profiling data into a ranked report.
+
+    x87 data comes from jit_counts_file (preferred) or trace_files (legacy Frida).
+    sample_files (CPU hotspots from macOS `sample`) is always required.
     """
-    # Merge all trace data
-    merged_trace = {"calls": []}
-    for trace_file in trace_files:
-        data = load_json_file(trace_file)
-        merged_trace["calls"].extend(data.get("calls", []))
-    
-    # Merge all sample data
-    merged_samples = {"samples": []}
+    merged_samples: dict = {"samples": []}
     for sample_file in sample_files:
         data = load_json_file(sample_file)
         merged_samples["samples"].extend(data.get("samples", []))
-    
-    # Generate report
-    report = merge_reports(
-        x87_trace_data=merged_trace,
+
+    jit_opcode_counts: Optional[dict] = None
+    if jit_counts_file is not None:
+        raw = load_jit_counts(jit_counts_file)
+        jit_opcode_counts = raw["x87_opcode_counts"]
+
+    merged_trace: Optional[dict] = None
+    if trace_files:
+        merged_trace = {"calls": []}
+        for trace_file in trace_files:
+            data = load_json_file(trace_file)
+            merged_trace["calls"].extend(data.get("calls", []))
+
+    return merge_reports(
         cpu_sample_data=merged_samples,
+        x87_trace_data=merged_trace,
+        jit_opcode_counts=jit_opcode_counts,
         address_map=address_map,
         wow_version=wow_version,
         profile_duration_seconds=profile_duration_seconds,
     )
-    
-    return report
 
 
 def save_report(report: dict, output_dir: Path) -> Path:
@@ -110,13 +147,19 @@ def save_report(report: dict, output_dir: Path) -> Path:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Aggregate profiling traces into a ranked report"
+        description="Aggregate profiling data into a ranked report"
+    )
+    parser.add_argument(
+        "--jit-counts", "-j",
+        type=Path,
+        metavar="PATH",
+        help="JIT opcode counts JSON from ROSETTA_X87_PROFILE_OUT (preferred x87 source)",
     )
     parser.add_argument(
         "--trace", "-t",
         nargs="+",
         type=Path,
-        help="Raw trace JSON file(s) from trace_x87.py",
+        help="Legacy Frida raw_trace JSON file(s) (optional; ignored when --jit-counts is set)",
     )
     parser.add_argument(
         "--samples", "-s",
@@ -150,46 +193,80 @@ def main():
     parser.add_argument(
         "--auto",
         action="store_true",
-        help="Auto-discover latest trace and sample files",
+        help=(
+            "Auto-discover files: JIT counts from ROSETTA_X87_PROFILE_OUT (or default path), "
+            "CPU samples from data/profiling/cpu_samples_*.json"
+        ),
     )
-    
+    parser.add_argument(
+        "--output-format",
+        choices=["default", "hot-path-json"],
+        default="default",
+        help="Output format: 'default' (full report) or 'hot-path-json' (MRE builder input)",
+    )
+
     args = parser.parse_args()
-    
+
     try:
-        # Auto-discover files if requested
+        jit_counts_file: Optional[Path] = args.jit_counts
+        trace_files: list[Path] = []
+        sample_files: list[Path] = []
+
         if args.auto:
-            trace_pattern = "data/profiling/raw_trace_*.json"
             sample_pattern = "data/profiling/cpu_samples_*.json"
-            
-            trace_files = [Path(f) for f in glob.glob(trace_pattern)]
             sample_files = [Path(f) for f in glob.glob(sample_pattern)]
-            
-            if not trace_files:
-                print(f"No trace files found matching {trace_pattern}", file=sys.stderr)
-                return 1
+
             if not sample_files:
-                print(f"No sample files found matching {sample_pattern}", file=sys.stderr)
+                print(f"No CPU sample files found matching {sample_pattern}", file=sys.stderr)
                 return 1
-            
-            print(f"Found {len(trace_files)} trace file(s) and {len(sample_files)} sample file(s)")
+
+            # Prefer JIT counts over legacy Frida traces.
+            if jit_counts_file is None:
+                env_path = os.environ.get("ROSETTA_X87_PROFILE_OUT", DEFAULT_JIT_OUT)
+                candidate = Path(env_path)
+                if candidate.exists():
+                    jit_counts_file = candidate
+
+            if jit_counts_file is not None:
+                print(f"JIT counts: {jit_counts_file}")
+            else:
+                trace_pattern = "data/profiling/raw_trace_*.json"
+                trace_files = [Path(f) for f in glob.glob(trace_pattern)]
+                if trace_files:
+                    print(f"Found {len(trace_files)} legacy trace file(s)")
+                else:
+                    print(
+                        "No JIT counts file found and no trace files; producing CPU-only report.",
+                        file=sys.stderr,
+                    )
+
+            print(f"Found {len(sample_files)} CPU sample file(s)")
         else:
-            trace_files = args.trace or []
             sample_files = args.samples or []
-            
-            if not trace_files:
-                print("No trace files specified. Use --trace or --auto", file=sys.stderr)
+            trace_files = args.trace or []
+
+            if not sample_files:
+                print("No sample files specified. Use --samples or --auto", file=sys.stderr)
                 return 1
-        
+
+            if jit_counts_file is None and not trace_files:
+                print(
+                    "No x87 data specified. Use --jit-counts, --trace, or --auto",
+                    file=sys.stderr,
+                )
+                print("Continuing with CPU samples only.", file=sys.stderr)
+
         # Load address map
         address_map = load_address_map(args.address_map)
         print(f"Loaded {len(address_map)} address mappings")
-        
+
         # Analyze
-        print("Analyzing traces and samples...")
+        print("Analyzing...")
         report = analyze(
-            trace_files=trace_files,
             sample_files=sample_files,
             address_map=address_map,
+            trace_files=trace_files or None,
+            jit_counts_file=jit_counts_file,
             wow_version=args.wow_version,
             profile_duration_seconds=args.duration,
         )
@@ -201,6 +278,12 @@ def main():
             for error in errors:
                 print(f"  - {error}", file=sys.stderr)
             return 1
+        
+        # Hot-path JSON output mode
+        if args.output_format == "hot-path-json":
+            hot_path = extract_hot_path(report)
+            print(json.dumps(hot_path, indent=2))
+            return 0
         
         # Save
         output_dir = args.output_dir.resolve()

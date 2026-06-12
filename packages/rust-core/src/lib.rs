@@ -10,6 +10,7 @@
 pub mod adapters;
 pub mod diagnostics;
 pub mod integration;
+pub mod options;
 pub mod ports;
 pub mod resources;
 pub mod runner_registry;
@@ -20,6 +21,7 @@ pub use adapters::errors::{AdapterError, LaunchError, TranslationError};
 pub use adapters::mock_wine_adapter::MockWineAdapter;
 pub use adapters::rosettax87_jit_adapter::Rosettax87JitAdapter;
 pub use adapters::whisky_adapter::WhiskyAdapter;
+pub use options::{DiagnoseOptions, LaunchOptions, SetupOptions};
 pub use ports::launcher::{RosettaLauncherPort, WowLauncherPort};
 pub use ports::rosetta::RosettaTranslationPort;
 pub use ports::runner::RunnerPort;

@@ -1,168 +1,137 @@
-# profiler Package - Agent Guide
+# profiler Package — Agent Guide
 
 ## Overview
-Python profiling toolkit for WoW.exe on Apple Silicon. Combines Frida dynamic instrumentation with macOS sampling to measure x87 translation overhead and identify bottlenecks.
 
-## Your Workspace
+Python profiling toolkit for WoW 3.3.5a on Apple Silicon.
+
+**x87 opcode frequency** comes from the rosettax87 JIT itself: set
+`ROSETTA_X87_PROFILE=1` at launch and the JIT counts every x87 instruction it
+translates. Send `SIGUSR2` to dump the counts to `ROSETTA_X87_PROFILE_OUT`.
+
+**CPU hotspots** come from the macOS built-in `sample` command, which works on
+any process including Rosetta-translated ones — no SIP bypass or sudo required.
+
+Frida is no longer used. The WoW process is `Code Type: X86-64 (translated)`
+via Rosetta; an arm64 Frida binary cannot inject into it, and `sudo` does not
+fix the architectural mismatch.
+
+## Workspace
+
 ```
 tools/profiler/
 ├── AGENTS.md              # This file
-├── pyproject.toml         # Python dependencies (uv)
+├── pyproject.toml         # Python dependencies (uv); Frida removed
 ├── config.toml            # Profiler configuration
-├── README.md              # Detailed usage guide
-├── attach.py              # Attach Frida to WoW.exe
-├── trace_x87.py           # Log x87 instruction patterns
-├── sample_cpu.py          # Collect CPU samples via macOS sample command
-├── analyze.py             # Process traces and samples
-├── schema.py              # Trace data schema validation
-└── frida_scripts/         # Frida instrumentation hooks
-    ├── x87_tracer.js      # Hook x87 instructions
-    ├── memory_trace.js    # Track memory access
-    └── hook_points.js     # WoW-specific injection points
+├── attach.py              # Locate the WoW/runtime_loader process (no Frida)
+├── ingest_jit_counts.py   # Read ROSETTA_X87_PROFILE_OUT JSON → x87 summary
+├── sample_cpu.py          # CPU hotspots via macOS `sample` command
+├── analyze.py             # Combine JIT counts + CPU samples → report_*.json
+├── schema.py              # Report schema + merge_reports()
+├── build_mre.py           # Generate rust_x87_mre from a report
+└── frida_scripts/         # d3d9_hook.js, wine_filter.js (unused; kept for reference)
 ```
 
 ## Quick Start
 
-### Setup
 ```bash
+# 1. Ensure deps
+cd tools/profiler && uv sync
+
+# 2. Launch WoW with JIT profiling enabled
+ROSETTA_X87_PROFILE=1 ROSETTA_X87_PROFILE_OUT=/tmp/rosettax87_profile.json \
+    just wow-sans-patch
+
+# 3. In another terminal, run the profile recipe (no sudo)
+just profile-quick       # 30s
+just profile             # 5 min
+
+# 4. Or manually:
 cd tools/profiler
-uv sync                  # Install dependencies (Frida, etc.)
+uv run python3 sample_cpu.py --duration 30
+kill -USR2 $(uv run python3 attach.py)   # dump JIT counts
+sleep 1
+uv run python3 analyze.py --auto
 ```
 
-### Profile WoW
-```bash
-# 1. Attach and start x87 tracing
-python3 attach.py
+## Key Env Vars
 
-# 2. In another terminal, trace x87 instructions
-python3 trace_x87.py --duration 30  # 30 seconds of trace
+| Variable | Default | Description |
+|---|---|---|
+| `ROSETTA_X87_PROFILE` | — | Set to `1` to enable JIT opcode counting |
+| `ROSETTA_X87_PROFILE_OUT` | `/tmp/rosettax87_profile.json` | Where the JIT writes counts |
 
-# 3. Collect CPU samples (macOS native)
-python3 sample_cpu.py --duration 30
+## Profiling Data Sources
 
-# 4. Analyze results
-python3 analyze.py
-# Output: profiling-results.json with overhead breakdown
+### JIT opcode counts (`ingest_jit_counts.py`)
+
+The rosettax87 JIT instruments `hook_translate_insn` in
+`rosetta_core/src/CustomTranslationHook.cpp`. For every x87 instruction the JIT
+handles (i.e., `Translator::translate_instruction` returns a value), it
+increments a per-opcode atomic counter.
+
+Counters are dumped on demand via `SIGUSR2` (for a running session) or via
+`atexit` when the process exits cleanly.
+
+Output format:
+```json
+{
+  "x87_opcode_counts": { "fmul": 12345, "fld": 9876, ... },
+  "translated_total": 22221
+}
 ```
 
-### Typical Workflow
-```bash
-# Terminal 1: Start WoW
-cd ~/Crossover/Bottles/WoW && ./WoW.exe
+`ingest_jit_counts.py` reads this file and converts it to the report schema's
+`x87_summary.by_function` field (by_function is repurposed as by_opcode for
+MRE instruction weighting).
 
-# Terminal 2: Run profiler
-cd tools/profiler
-uv sync
-python3 attach.py --process WoW.exe
-python3 trace_x87.py --output x87_trace_$(date +%s).log
-python3 sample_cpu.py --output cpu_sample_$(date +%s).log
-python3 analyze.py --trace x87_trace_*.log --samples cpu_sample_*.log
-```
+### CPU samples (`sample_cpu.py`)
 
-## Key Constraints
+Wraps `sample <pid> <duration>`. Works on Rosetta-translated processes. Produces
+`cpu_samples_*.json` with per-address sample counts used to rank `hot_functions`.
 
-### DO: Profile WoW.exe only
-- x87 translation overhead measurement
-- x87 instruction frequency analysis
-- CPU hotspot identification
+### Analysis (`analyze.py`)
 
-### DO NOT: Disassemble or decompile
-- libSiliconPatch.dll is proprietary but optional (disabled via `--disable-lib-silicon`)
-- Tracing is permitted; reverse engineering is not
-- Hook only public entry points
+Combines both sources:
+- `x87_summary` from JIT counts (exact opcode frequencies)
+- `hot_functions` ranked by CPU sample count (address-level hotspots)
+
+`--auto` discovers both inputs automatically.
 
 ## Architecture
 
-### attach.py
-- Uses Frida to inject into WoW.exe process
-- Establishes RPC channel for script communication
-- Manages process lifecycle (attach, detach)
-
-### trace_x87.py
-- Instruments x87 FPU instruction execution
-- Logs: opcode, operands, timestamps, register state
-- Frida hooks into `libSiliconPatch!execute_x87_instruction` (inferred; libSiliconPatch is optional)
-- Output: `data/profiler/x87_trace_*.log`
-
-### sample_cpu.py
-- Wraps macOS `sample` command (system sampling tool)
-- Collects statistical CPU profiling data
-- Respects System Integrity Protection (SIP) restrictions
-- Falls back gracefully if SIP blocks sampling
-
-### analyze.py
-- Aggregates x87 traces and CPU samples
-- Computes: instruction frequency, overhead per opcode, hottest callstacks
-- Generates JSON report for visualization
-- Output: `data/profiler/analysis_*.json`
-
-### schema.py
-- Dataclass definitions for trace format
-- Validates log structure before analysis
-- Example:
-  ```python
-  @dataclass
-  class X87Instruction:
-      timestamp: float
-      opcode: int
-      src_operand: Optional[float]
-      dst_operand: Optional[float]
-      execution_time_us: float
-  ```
-
-## Wave 0 Status
-
-✅ **Built and smoke-tested**: All tools compile and attach to test process
-✅ **Harness validated**: Injection mechanism confirmed on mock x87 suite (hook_injection_tests.rs)
-⏳ **Real-WoW validation**: Pending live WoW profiling session (requires Windows environment)
-
-### Smoke Test
-```bash
-python3 -m pytest frida_scripts/  # Unit-level script validation
-zig build && cargo test --test mre # Rust harness validates injection mock
+```mermaid
+flowchart TD
+    jit["rosettax87_jit\n(ROSETTA_X87_PROFILE=1)"]
+    sample["macOS sample command"]
+    jit -->|SIGUSR2 or atexit| counts["x87_opcode_counts.json"]
+    sample -->|sample_cpu.py| cpu["cpu_samples_*.json"]
+    counts --> analyze["analyze.py --auto"]
+    cpu --> analyze
+    analyze --> report["report_*.json"]
+    report --> build_mre["build_mre.py"]
+    build_mre --> mre["rust_x87_mre/\n(headless benchmark)"]
 ```
 
-## Guardrails: System Integrity Protection & Hardened Runtime
+## Constraints
 
-### On macOS
-- **SIP (System Integrity Protection)**: Blocks sampling of system frameworks
-  - `sample_cpu.py` detects and reports SIP restrictions
-  - Falls back to lighter-weight Frida-based CPU attribution (slower)
-  
-- **Hardened Runtime**: Requires code signing for process attachment
-  - `attach.py` handles entitlement errors gracefully
-  - Suggests: `codesign -s - ./attach.py` if needed
+### DO
+- Count x87 translation frequency via the JIT (exact, zero-overhead when off)
+- Sample host CPU via `sample` (statistical, SIP-safe)
 
-### Error Handling
-```python
-try:
-    cpu_trace = sample_cpu(process, duration=30)
-except SIPBlockedError:
-    print("SIP blocking sampling; using Frida CPU attribution (slower)")
-    cpu_trace = frida_cpu_attribution(process, duration=30)
-```
+### DO NOT
+- Use Frida — it cannot attach to Rosetta-translated processes from arm64
+- Use `sudo` — not needed with this approach
+- Disassemble or reverse-engineer WoW/libSiliconPatch
 
-## Dependencies
-```toml
-[tool.poetry.dependencies]
-python = "^3.10"
-frida = "^16.0"
-pydantic = "^2.0"    # Schema validation
-click = "^8.0"        # CLI
-```
+## Regression Workflow
 
-Install via:
-```bash
-uv sync  # Uses pyproject.toml + uv.lock
-```
-
-## Performance Expectations
-- x87 tracing overhead: ~5-10% per instruction (Frida hooks)
-- CPU sampling accuracy: ±10% (macOS sample() statistical)
-- Total profiling impact: ~15-20% slowdown on real workloads
+Profile once without libSiliconPatch (`just profile-full`) and once with
+(`just profile-full-patch`). Compare `x87_summary.total_x87_calls` and
+opcode distributions across reports. A working libSiliconPatch should reduce
+guest x87 translation counts for the ops it rewrites.
 
 ## See Also
-- [Root AGENTS.md](../../AGENTS.md) - Project overview
-- [Profiling Guide](../../docs/profiling-guide.md) - Complete profiling workflow
-- [Integration](../../packages/integration/AGENTS.md) - Rust MRE harness (validate hooks locally)
-- [Zig Glue](../../packages/zig-glue/AGENTS.md) - Windows DLL build
+
+- `docs/profiling-guide.md` — complete end-user workflow
+- `vendor/rosettax87_jit/rosetta_core/src/CustomTranslationHook.cpp` — JIT counter impl
+- `packages/rust-core/AGENTS.md` — Rust domain layer

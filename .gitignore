@@ -31,11 +31,16 @@ __pycache__/
 *.so
 *.a
 *.o
-.zip
+*.zip
 vendor/rosettax87_jit/build/
 packages/gui/binaries/
 packages/gui/patching/*
 !packages/gui/patching/.gitkeep
+dist/
+node_modules/
+packages/gui/dist/
+vendor/prebuilt/d9vk/
+vendor/prebuilt/libSiliconPatch/
 
 # Test artifacts
 *.log

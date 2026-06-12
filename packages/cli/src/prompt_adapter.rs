@@ -21,9 +21,9 @@ impl PromptPort for DialoguerPrompt {
         if let Some(d) = default {
             select = select.default(d);
         }
-        select.interact().map_err(|e| {
-            LaunchError::SetupFailed(format!("prompt failed: {e}"))
-        })
+        select
+            .interact()
+            .map_err(|e| LaunchError::SetupFailed(format!("prompt failed: {e}")))
     }
 
     fn select_many(
@@ -61,9 +61,9 @@ impl PromptPort for DialoguerPrompt {
                 }
             });
         }
-        let value = input.interact_text().map_err(|e| {
-            LaunchError::SetupFailed(format!("prompt failed: {e}"))
-        })?;
+        let value = input
+            .interact_text()
+            .map_err(|e| LaunchError::SetupFailed(format!("prompt failed: {e}")))?;
         Ok(PathBuf::from(value))
     }
 }
@@ -126,9 +126,7 @@ impl PromptPort for HeadlessPrompt {
             .clone()
             .or_else(|| default.map(|p| p.to_path_buf()))
             .ok_or_else(|| {
-                LaunchError::SetupFailed(
-                    "setup requires --wow-dir in non-interactive mode".into(),
-                )
+                LaunchError::SetupFailed("setup requires --wow-dir in non-interactive mode".into())
             })?;
         if must_exist && !path.exists() {
             return Err(LaunchError::SetupFailed(format!(

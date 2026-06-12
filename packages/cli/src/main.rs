@@ -4,12 +4,12 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
+use wow_silicon_core::commands::config::{list_config, set_config};
+use wow_silicon_core::commands::run::{run_wow, RunOverrides};
 use wow_silicon_core::config::TomlConfigStore;
 use wow_silicon_core::diagnostics::run_checklist;
 use wow_silicon_core::reset::ResetOrchestrator;
 use wow_silicon_core::setup::SetupOrchestrator;
-use wow_silicon_core::commands::config::{list_config, set_config};
-use wow_silicon_core::commands::run::{run_wow, RunOverrides};
 
 mod prompt_adapter;
 use prompt_adapter::{DialoguerPrompt, HeadlessPrompt};
@@ -152,7 +152,7 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
     if let Some(ref p) = report.whisky {
         ok(&format!("Whisky: {p}"));
     } else {
-        warn(&format!("Whisky: not found"));
+        warn("Whisky: not found");
     }
 
     info("Checking patching resources…");
@@ -302,8 +302,7 @@ fn main() {
             }
             .unwrap_or_else(|e| {
                 if let Some(ref p) = log_path {
-                    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
-                    {
+                    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
                         let _ = writeln!(f, "[fail] {e}");
                     }
                 }
@@ -438,8 +437,8 @@ fn main() {
                     eprintln!("{out}");
                 }
                 ConfigCmd::Set { key, value } => {
-                    let out = set_config(&store, &key, &value)
-                        .unwrap_or_else(|e| die(&e.to_string()));
+                    let out =
+                        set_config(&store, &key, &value).unwrap_or_else(|e| die(&e.to_string()));
                     ok(&out);
                 }
             }

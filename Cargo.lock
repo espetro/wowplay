@@ -4904,6 +4904,7 @@ dependencies = [
 name = "wow-silicon-integration"
 version = "0.4.1"
 dependencies = [
+ "tempfile",
  "wow-silicon-core",
 ]
 

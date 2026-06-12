@@ -11,7 +11,6 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "vitest",
-    "test:e2e": "tauri-pilot run e2e/",
     "test:gauge": "cd gauge-tests && gauge run specs/",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",

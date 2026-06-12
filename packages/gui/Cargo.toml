@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 wow-silicon-core = { path = "../rust-core" }

@@ -6,6 +6,7 @@ use crate::state::app_state::{AppConfig, AppState};
 
 /// Gets the current application configuration.
 #[tauri::command]
+#[specta::specta]
 pub async fn get_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, CommandError> {
     let config = state
         .config
@@ -16,6 +17,7 @@ pub async fn get_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, 
 
 /// Sets the application configuration and persists it to disk.
 #[tauri::command]
+#[specta::specta]
 pub async fn set_config(
     state: tauri::State<'_, AppState>,
     config: AppConfig,
@@ -43,6 +45,7 @@ pub async fn set_config(
 
 /// Resets the application configuration to defaults and clears the store.
 #[tauri::command]
+#[specta::specta]
 pub async fn reset_config(
     state: tauri::State<'_, AppState>,
     app_handle: AppHandle,

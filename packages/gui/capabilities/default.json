@@ -5,11 +5,6 @@
     "core:default",
     "dialog:allow-open",
     "dialog:allow-confirm",
-    "store:default",
-    "shell:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [{ "name": "binaries/wowplay", "sidecar": true, "args": true }]
-    }
+    "store:default"
   ]
 }

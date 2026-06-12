@@ -2,96 +2,66 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use serde::Serialize;
-use tauri_plugin_shell::process::CommandEvent;
-use tauri_plugin_shell::ShellExt;
+use wow_silicon_core::options::SetupOptions;
+use wow_silicon_core::setup::SetupOrchestrator;
 
 use crate::error::CommandError;
 use crate::logging::make_log_path;
 
 /// Result of running the setup sequence.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SetupResult {
     pub success: bool,
     pub messages: Vec<String>,
 }
 
-/// Runs the one-time setup sequence via the wowplay sidecar.
+/// Runs the one-time setup sequence directly via rust-core.
 #[tauri::command]
+#[specta::specta]
 pub async fn run_setup(
-    app: tauri::AppHandle,
     wow_dir: String,
     runner: String,
 ) -> Result<SetupResult, CommandError> {
     let _ = runner; // kept for Tauri command ABI; frontend passes it
-    let args = vec!["setup".to_string(), "--wow-dir".to_string(), wow_dir];
-
-    let (mut rx, _child) = app
-        .shell()
-        .sidecar("wowplay")
-        .map_err(|e| CommandError::from(e.to_string()))?
-        .args(args)
-        .spawn()
-        .map_err(|e| CommandError::from(e.to_string()))?;
-
-    let mut messages: Vec<String> = Vec::new();
-    let mut exit_code: Option<i32> = None;
-
-    while let Some(event) = rx.recv().await {
-        match event {
-            CommandEvent::Stdout(line) => {
-                messages.push(String::from_utf8_lossy(&line).to_string());
-            }
-            CommandEvent::Stderr(line) => {
-                messages.push(String::from_utf8_lossy(&line).to_string());
-            }
-            CommandEvent::Terminated(payload) => {
-                exit_code = payload.code;
-                break;
-            }
-            _ => {}
-        }
-    }
-
-    let failed = exit_code.map(|c| c != 0).unwrap_or(false);
-    let err_msg = if failed {
-        let msg = messages.join("\n");
-        Some(if msg.is_empty() {
-            format!("setup failed with code {}", exit_code.unwrap_or(-1))
-        } else {
-            msg
-        })
-    } else {
-        None
+    let options = SetupOptions {
+        wow_dir: PathBuf::from(&wow_dir),
+        ..Default::default()
     };
 
-    // Persist all sidecar output (and any error) to a log file.
+    let messages = tokio::task::spawn_blocking(move || SetupOrchestrator::run(&options))
+        .await
+        .map_err(|e| CommandError::from(e.to_string()))?
+        .map_err(|e| {
+            if let Some(log_path) = make_log_path() {
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
+                {
+                    let _ = writeln!(f, "[fail] {e}");
+                }
+            }
+            CommandError::from(e.to_string())
+        })?;
+
     if let Some(log_path) = make_log_path() {
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&log_path)
         {
-            for line in &messages {
-                let _ = writeln!(f, "{line}");
-            }
-            if let Some(ref e) = err_msg {
-                let _ = writeln!(f, "[fail] {e}");
+            for msg in &messages {
+                let _ = writeln!(f, "[ ok ] {msg}");
             }
         }
     }
 
-    if let Some(msg) = err_msg {
-        return Err(CommandError::from(msg));
-    }
-
-    Ok(SetupResult {
-        success: true,
-        messages,
-    })
+    Ok(SetupResult { success: true, messages })
 }
 
 /// Validates a WoW installation directory.
 #[tauri::command]
+#[specta::specta]
 pub async fn validate_wow_dir(path: String) -> Result<ValidationResult, CommandError> {
     let path = PathBuf::from(path);
     let wow_exe = path.join("WoW.exe").exists() || path.join("wow.exe").exists();
@@ -127,7 +97,7 @@ pub async fn validate_wow_dir(path: String) -> Result<ValidationResult, CommandE
 }
 
 /// Result of validating a WoW directory.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ValidationResult {
     pub valid: bool,
     pub wow_exe_found: bool,

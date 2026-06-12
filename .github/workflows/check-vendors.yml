@@ -1,0 +1,53 @@
+name: Check Vendors
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'   # 1st of every month, 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-vendors:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: jdx/mise-action@v2
+
+      - name: Check for stale vendors
+        id: check
+        run: |
+          bash scripts/update-vendors.sh --check \
+            && echo "stale=false" >> "$GITHUB_OUTPUT" \
+            || { code=$?; [[ $code -eq 2 ]] && echo "stale=true" >> "$GITHUB_OUTPUT" || exit $code; }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update stale vendors
+        if: steps.check.outputs.stale == 'true'
+        run: bash scripts/update-vendors.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Open PR
+        if: steps.check.outputs.stale == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/vendor-updates-$(date +%Y-%m-%d)"
+          git checkout -b "$BRANCH"
+          git add vendor/prebuilt/
+          git commit -m "chore: update vendored artifacts"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: update vendored artifacts ($(date +%Y-%m-%d))" \
+            --body "Automated monthly vendor update. Review VENDORS.toml and CHECKSUMS.sha256 diffs before merging." \
+            --base develop \
+            --head "$BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

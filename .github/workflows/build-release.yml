@@ -150,12 +150,6 @@ jobs:
       - name: Install JS dependencies
         run: bun install
 
-      - name: Build wowplay sidecar
-        run: |
-          cargo build --release --target aarch64-apple-darwin -p wowplay
-          mkdir -p packages/gui/binaries
-          cp target/aarch64-apple-darwin/release/wowplay packages/gui/binaries/wowplay-aarch64-apple-darwin
-
       - name: Build winerosetta.dll
         run: zig build --release=safe
         working-directory: packages/zig-glue

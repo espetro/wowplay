@@ -4,7 +4,7 @@ use crate::error::CommandError;
 use wow_silicon_core::setup::SetupOrchestrator;
 
 /// Status of a runner for the frontend dropdown.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct RunnerStatus {
     pub name: String,
     pub display_name: String,
@@ -14,6 +14,7 @@ pub struct RunnerStatus {
 
 /// Checks all known runners and returns their availability status.
 #[tauri::command]
+#[specta::specta]
 pub async fn check_runners() -> Result<Vec<RunnerStatus>, CommandError> {
     let checks = SetupOrchestrator::check_all_runners();
     let statuses = checks

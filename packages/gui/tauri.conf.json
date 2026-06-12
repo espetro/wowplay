@@ -5,8 +5,8 @@
   "build": {
     "frontendDist": "dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "bun run --sequential sidecar dev",
-    "beforeBuildCommand": "bun run --sequential sidecar build"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
   },
   "app": {
     "windows": [{
@@ -19,7 +19,6 @@
     }]
   },
   "bundle": {
-    "externalBin": ["binaries/wowplay"],
     "resources": ["patching/**/*"],
     "macOS": {
       "minimumSystemVersion": "12.0",

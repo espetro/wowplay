@@ -1,32 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ResultAsync } from 'neverthrow';
 
-export interface AppConfig {
-  runner: string | null;
-  wow_dir: string | null;
-  show_alerts: boolean;
-  bottle: string | null;
-}
+import type { AppConfig, RunnerStatus, ValidationResult, SetupResult } from '../gen/bindings';
 
-export interface RunnerStatus {
-  name: string;
-  display_name: string;
-  available: boolean;
-  path: string | null;
-}
-
-export interface ValidationResult {
-  valid: boolean;
-  wow_exe_found: boolean;
-  divxdecoder_patched: boolean;
-  message: string;
-  severity: string;
-}
-
-export interface SetupResult {
-  success: boolean;
-  messages: string[];
-}
+export type { AppConfig, RunnerStatus, ValidationResult, SetupResult };
 
 export type TauriError = {
   kind: 'ipc';
@@ -44,7 +21,12 @@ function ipcError(message: string): TauriError {
 function invokeResult<T>(cmd: string, args?: Record<string, unknown>): ResultAsync<T, TauriError> {
   return ResultAsync.fromPromise(
     invoke<T>(cmd, args),
-    (e) => ipcError(typeof e === 'object' && e !== null && 'message' in e ? String((e as { message: unknown }).message) : String(e))
+    (e) =>
+      ipcError(
+        typeof e === 'object' && e !== null && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : String(e),
+      ),
   );
 }
 

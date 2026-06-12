@@ -4,11 +4,9 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
-use wow_silicon_core::adapters::whisky_adapter::WhiskyAdapter;
 use wow_silicon_core::diagnostics::run_checklist;
 use wow_silicon_core::integration::wow_launcher::WowLauncher;
-use wow_silicon_core::resources::resolve_patching_dir;
-use wow_silicon_core::runner_registry::RunnerRegistry;
+use wow_silicon_core::options::{DiagnoseOptions, LaunchOptions, SetupOptions};
 use wow_silicon_core::setup::SetupOrchestrator;
 
 #[derive(Parser)]
@@ -102,8 +100,8 @@ fn print_runner_table() {
     }
 }
 
-fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
-    let report = match run_checklist(wow_dir.map(|p| p.as_path()), patching_dir.cloned()) {
+fn run_diagnose(options: &DiagnoseOptions) {
+    let report = match run_checklist(options) {
         Ok(r) => r,
         Err(e) => {
             die(&format!("diagnostics failed: {e}"));
@@ -156,11 +154,7 @@ fn run_diagnose(wow_dir: Option<&PathBuf>, patching_dir: Option<&PathBuf>) {
 
     info("Available runners:");
     for runner in report.runners {
-        let status = if runner.available {
-            "available"
-        } else {
-            "not found"
-        };
+        let status = if runner.available { "available" } else { "not found" };
         info(&format!("  {}: {status}", runner.name));
     }
 }
@@ -230,18 +224,11 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Cmd::Diagnose {
-            wow_dir,
-            patching_dir,
-        } => {
-            run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
+        Cmd::Diagnose { wow_dir, patching_dir } => {
+            run_diagnose(&DiagnoseOptions { wow_dir, patching_dir });
         }
 
-        Cmd::Setup {
-            wow_dir,
-            patching_dir,
-            enable_lib_silicon,
-        } => {
+        Cmd::Setup { wow_dir, patching_dir, enable_lib_silicon } => {
             let log_path = match make_log_path() {
                 Ok(p) => {
                     eprintln!("Logs are saved to: {}", p.display());
@@ -255,16 +242,15 @@ fn main() {
 
             print_runner_table();
 
-            let messages = SetupOrchestrator::run(&wow_dir, patching_dir, enable_lib_silicon)
-                .unwrap_or_else(|e| {
-                    if let Some(ref p) = log_path {
-                        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
-                        {
-                            let _ = writeln!(f, "[fail] {e}");
-                        }
+            let options = SetupOptions { wow_dir, patching_dir, enable_lib_silicon };
+            let messages = SetupOrchestrator::run(&options).unwrap_or_else(|e| {
+                if let Some(ref p) = log_path {
+                    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
+                        let _ = writeln!(f, "[fail] {e}");
                     }
-                    die(&e.to_string())
-                });
+                }
+                die(&e.to_string())
+            });
 
             if let Some(ref p) = log_path {
                 if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
@@ -291,36 +277,35 @@ fn main() {
             enable_lib_silicon,
         } => {
             if diagnose {
-                run_diagnose(wow_dir.as_ref(), patching_dir.as_ref());
+                run_diagnose(&DiagnoseOptions {
+                    wow_dir: wow_dir.clone(),
+                    patching_dir: patching_dir.clone(),
+                });
                 return;
-            }
-
-            let resources =
-                resolve_patching_dir(patching_dir).unwrap_or_else(|e| die(&e.to_string()));
-            let runner: std::sync::Arc<dyn wow_silicon_core::ports::runner::RunnerPort> =
-                if runner == "whisky" {
-                    if let Some(bundle) = whisky_bundle {
-                        std::sync::Arc::new(WhiskyAdapter::new(bundle))
-                    } else {
-                        RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
-                    }
-                } else {
-                    RunnerRegistry::resolve(&runner).unwrap_or_else(|e| die(&e.to_string()))
-                };
-            let mut launcher = WowLauncher::new(runner, resources, &bottle);
-            if let Ok(bin_dir) = std::env::var("ROSETTAX87_BIN_DIR") {
-                launcher = launcher.with_rosettax87_bin_dir(PathBuf::from(bin_dir));
-            }
-            if sudo {
-                launcher = launcher.with_sudo();
-            }
-            if enable_lib_silicon {
-                launcher = launcher.with_enable_lib_silicon(true);
             }
 
             let wow_dir = wow_dir.unwrap_or_else(|| {
                 die("--wow-dir is required; e.g. wowplay run --wow-dir ~/WoW");
             });
+
+            let rosettax87_bin_dir = std::env::var("ROSETTAX87_BIN_DIR").ok().map(PathBuf::from);
+
+            let options = LaunchOptions {
+                wow_dir: wow_dir.clone(),
+                runner,
+                bottle,
+                patching_dir,
+                rosettax87_bin_dir,
+                enable_lib_silicon,
+                whisky_bundle,
+            };
+
+            let mut launcher =
+                WowLauncher::from_options(options).unwrap_or_else(|e| die(&e.to_string()));
+
+            if sudo {
+                launcher = launcher.with_sudo();
+            }
 
             let log_path = if no_log {
                 None
@@ -342,7 +327,8 @@ fn main() {
                 .launch_wow_logged(&wow_dir, log_path.as_deref())
                 .unwrap_or_else(|e| {
                     if let Some(ref p) = log_path {
-                        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p)
+                        if let Ok(mut f) =
+                            fs::OpenOptions::new().create(true).append(true).open(p)
                         {
                             let _ = writeln!(f, "[fail] {e}");
                         }

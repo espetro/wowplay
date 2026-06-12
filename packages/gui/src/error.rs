@@ -3,7 +3,7 @@
 use serde::Serialize;
 
 /// A serializable error for Tauri commands.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct CommandError {
     pub message: String,
 }

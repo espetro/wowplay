@@ -1,0 +1,31 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: oven-sh/setup-bun@v1
+
+      - run: brew install zig
+
+      - name: Install JS dependencies
+        run: bun install
+        working-directory: packages/gui
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Export TypeScript bindings
+        run: cargo test --manifest-path packages/gui/Cargo.toml export_bindings
+
+      - name: Frontend type-check and tests
+        run: bun run build && bun run test
+        working-directory: packages/gui

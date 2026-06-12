@@ -3,35 +3,25 @@ mod error;
 mod logging;
 mod state;
 
-use state::app_state::{AppConfig, AppState};
-use tauri::Manager;
-use tauri_plugin_store::StoreExt;
+use state::app_state::AppState;
 
 fn main() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
-            let config = app
-                .store_builder("config.json")
-                .build()
-                .ok()
-                .and_then(|store| store.get("config"))
-                .and_then(|val| serde_json::from_value::<AppConfig>(val).ok())
-                .unwrap_or_default();
-
-            app.manage(AppState::from_config(config));
+        .setup(|_app| {
+            // AppState is now stateless — no config loading at startup
             Ok(())
         })
+        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::config::get_config,
             commands::config::set_config,
+            commands::config::list_config,
             commands::diagnostics::check_runners,
             commands::setup::run_setup,
             commands::launch::launch_wow,
             commands::setup::validate_wow_dir,
-            commands::config::reset_config,
         ]);
 
     builder

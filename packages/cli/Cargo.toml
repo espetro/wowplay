@@ -12,3 +12,4 @@ path = "src/main.rs"
 [dependencies]
 wow-silicon-core = { path = "../rust-core" }
 clap = { version = "4", features = ["derive", "color"] }
+dialoguer = "0.11"

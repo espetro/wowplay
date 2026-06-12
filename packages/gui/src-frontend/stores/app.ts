@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store"
-import type { AppConfig, RunnerStatus } from "../lib/tauri"
+import type { RunnerStatus } from "../lib/tauri"
 
 interface AlertMessage {
   id: string
@@ -7,8 +7,15 @@ interface AlertMessage {
   message: string
 }
 
+export type StoreConfig = {
+  runner: string | null
+  wow_dir: string | null
+  bottle: string | null
+  show_alerts: boolean
+}
+
 interface AppStore {
-  config: AppConfig
+  config: StoreConfig
   runners: RunnerStatus[]
   alerts: AlertMessage[]
   isLoading: boolean

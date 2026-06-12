@@ -1,8 +1,8 @@
 # Menu Flow
 
-## User resets configuration via menu
+## User resets patches via menu
 
-Tags: menu-flow
+Tags: menu-flow, reset
 
 * Open the WoW on Silicon app
 * Wait for app to be ready
@@ -11,7 +11,7 @@ Tags: menu-flow
 * Click the "Setup" button
 * Wait for setup to complete
 * Open the options menu
-* Click "Reset Configuration"
+* Click "Reset"
 * Confirm reset action
 * Verify "Setup" button is visible
 * Verify runner dropdown is empty

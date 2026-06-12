@@ -1,52 +1,29 @@
-use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
+//! Config commands backed by TomlConfigStore (shared with CLI).
+
+use wow_silicon_core::commands::config::{list_config as core_list, set_config as core_set};
+use wow_silicon_core::config::{AppConfig, ConfigStore, TomlConfigStore};
 
 use crate::error::CommandError;
-use crate::state::app_state::{AppConfig, AppState};
 
-/// Gets the current application configuration.
+/// Gets the current configuration from TomlConfigStore.
 #[tauri::command]
-pub async fn get_config(state: tauri::State<'_, AppState>) -> Result<AppConfig, CommandError> {
-    let config = state.config.read().map_err(|e| CommandError::from(e.to_string()))?;
-    Ok(config.clone())
+pub async fn get_config() -> Result<AppConfig, CommandError> {
+    let store = TomlConfigStore::new();
+    store.load().map_err(|e| CommandError::from(e.to_string()))
 }
 
-/// Sets the application configuration and persists it to disk.
+/// Sets a single config key (runner, wow_dir, bottle, enable_lib_silicon).
+/// Mirrors `wowplay config set <key> <value>`.
 #[tauri::command]
-pub async fn set_config(
-    state: tauri::State<'_, AppState>,
-    config: AppConfig,
-    app_handle: AppHandle,
-) -> Result<(), CommandError> {
-    let mut state_config = state.config.write().map_err(|e| CommandError::from(e.to_string()))?;
-    *state_config = config.clone();
-
-    let store = app_handle
-        .store_builder("config.json")
-        .build()
-        .map_err(|e| CommandError::from(e.to_string()))?;
-    store.set(
-        "config",
-        serde_json::to_value(&config).map_err(|e| CommandError::from(e.to_string()))?,
-    );
-    store.save().map_err(|e| CommandError::from(e.to_string()))?;
-    Ok(())
+pub async fn set_config(key: String, value: String) -> Result<String, CommandError> {
+    let store = TomlConfigStore::new();
+    core_set(&store, &key, &value).map_err(|e| CommandError::from(e.to_string()))
 }
 
-/// Resets the application configuration to defaults and clears the store.
+/// Lists the current configuration as a formatted string.
+/// Mirrors `wowplay config list`.
 #[tauri::command]
-pub async fn reset_config(
-    state: tauri::State<'_, AppState>,
-    app_handle: AppHandle,
-) -> Result<(), CommandError> {
-    let mut config = state.config.write().map_err(|e| CommandError::from(e.to_string()))?;
-    *config = AppConfig::default();
-
-    let store = app_handle
-        .store_builder("config.json")
-        .build()
-        .map_err(|e| CommandError::from(e.to_string()))?;
-    store.delete("config");
-    store.save().map_err(|e| CommandError::from(e.to_string()))?;
-    Ok(())
+pub async fn list_config() -> Result<String, CommandError> {
+    let store = TomlConfigStore::new();
+    core_list(&store).map_err(|e| CommandError::from(e.to_string()))
 }

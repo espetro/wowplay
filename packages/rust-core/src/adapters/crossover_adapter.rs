@@ -78,8 +78,13 @@ impl RunnerPort for CrossOverAdapter {
         }
 
         let dst = self.wineloader2_path();
-        fs::copy(&src, &dst)
-            .map_err(|e| LaunchError::SetupFailed(format!("copy wineloader: {e}")))?;
+        fs::copy(&src, &dst).map_err(|e| {
+            LaunchError::SetupFailed(format!(
+                "copy wineloader ({} -> {}): {e}",
+                src.display(),
+                dst.display()
+            ))
+        })?;
 
         Command::new("codesign")
             .args(["--remove-signature", &dst.display().to_string()])

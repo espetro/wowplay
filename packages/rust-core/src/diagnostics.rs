@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::adapters::errors::LaunchError;
 use crate::adapters::whisky_adapter::{find_moonshine, WhiskyAdapter};
-use crate::integration::crossover::{find_crossover, is_rosetta_service_running, wineloader2_path};
+use crate::integration::crossover::{find_crossover, wineloader2_path};
 use crate::resources::resolve_patching_dir;
 use crate::setup::{RunnerCheck, SetupOrchestrator};
 
@@ -71,8 +71,8 @@ pub fn run_checklist(
         Err(_) => None,
     };
 
-    // Rosetta service
-    let rosetta_running = is_rosetta_service_running();
+    // Rosetta service — removed; rosettax87 is no longer a daemon pre-launch
+    let rosetta_running = false;
 
     // Wineloader2
     let wineloader2 = if let Some(ref cx_path) = crossover {

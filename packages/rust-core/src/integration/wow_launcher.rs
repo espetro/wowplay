@@ -15,18 +15,20 @@ use crate::ports::runner::RunnerPort;
 
 /// Orchestrates a full WoW 3.3.5a session via rosettax87 + a [`RunnerPort`].
 ///
-/// Launch sequence:
-/// 1. Apply game patch: stage D9VK, winerosetta (mods/ only), libSiliconPatch, rosettax87
+/// Launch sequence (pure execution — no directory mutations):
+/// 1. Verify setup is complete (all patched files present)
 /// 2. Prepare loader via runner (e.g. create `$CX_HOSTED/wineloader2`)
-/// 3. Patch DivxDecoder.dll natively via Rust PE patcher (enables winerosetta injection)
-/// 4. Ensure rosettax87 background service is running
-/// 5. `rosettax87 $LOADER WoW.exe` (from WoW dir)
+/// 3. Ensure rosettax87 background service is running
+/// 4. `rosettax87 $LOADER WoW.exe` (from WoW dir)
+///
+/// Directory mutations (`apply_game_patch`, `bootstrap_divx_decoder`) belong in
+/// [`SetupOrchestrator::run`](crate::setup::SetupOrchestrator::run).
 pub struct WowLauncher {
     runner: Arc<dyn RunnerPort>,
-    wowsilicon_resources: PathBuf,
+    patching_dir: PathBuf,
     /// Optional override for rosettax87 binary source directory.
     /// When set, `runtime_loader` and `libRuntimeRosettax87` are copied from here
-    /// instead of from `wowsilicon_resources/rosettax87/`.
+    /// instead of from `patching_dir/rosettax87/`.
     rosettax87_bin_dir: Option<PathBuf>,
     bottle: String,
     use_sudo: bool,
@@ -38,10 +40,10 @@ impl WowLauncher {
     ///
     /// `enable_lib_silicon` defaults to `false` — set to `true` via `with_enable_lib_silicon` to
     /// opt in to libSiliconPatch.dll deployment.
-    pub fn new(runner: Arc<dyn RunnerPort>, wowsilicon_resources: PathBuf, bottle: &str) -> Self {
+    pub fn new(runner: Arc<dyn RunnerPort>, patching_dir: PathBuf, bottle: &str) -> Self {
         Self {
             runner,
-            wowsilicon_resources,
+            patching_dir,
             rosettax87_bin_dir: None,
             bottle: bottle.to_string(),
             use_sudo: false,
@@ -74,10 +76,15 @@ impl WowLauncher {
     }
 
     /// Launches WoW, optionally tee-ing stdout/stderr to a log file.
+    ///
+    /// Pure execution: verifies that setup has been completed (all patched files
+    /// present) and then spawns the WoW process. Does **not** mutate the WoW
+    /// directory — run `wowplay setup` first.
     pub fn launch_wow_logged(
         &self,
         wow_dir: &Path,
         log_path: Option<&Path>,
+        verbose: bool,
     ) -> Result<WowSession, LaunchError> {
         if !self.runner.is_available() {
             return Err(LaunchError::SetupFailed(format!(
@@ -86,20 +93,26 @@ impl WowLauncher {
             )));
         }
 
-        Self::apply_game_patch(
-            wow_dir,
-            &self.wowsilicon_resources,
-            self.rosettax87_bin_dir.as_deref(),
-            self.enable_lib_silicon,
-        )?;
+        Self::check_setup_complete(wow_dir)?;
         let loader = self.runner.prepare_loader()?;
 
         let runtime_loader = wow_dir.join("rosettax87/runtime_loader");
-        Self::bootstrap_divx_decoder(wow_dir)?;
-        Self::ensure_rosetta_service(&runtime_loader, self.use_sudo)?;
+        // runtime_loader is a wrapper that forks/exec's the Wine loader; it is not a daemon.
 
         let wow_exe = Self::find_wow_exe(wow_dir)?;
         let env_vars = self.runner.build_env(&self.bottle);
+
+        if verbose {
+            eprintln!("  [debug] runtime_loader: {}", runtime_loader.display());
+            eprintln!("  [debug] loader: {}", loader.display());
+            eprintln!("  [debug] wow_exe: {}", wow_exe.display());
+            eprintln!(
+                "  [debug] launch command: {} {} {}",
+                runtime_loader.display(),
+                loader.display(),
+                wow_exe.display()
+            );
+        }
 
         let mut cmd = Command::new(&runtime_loader);
         cmd.arg(&loader).arg(&wow_exe).current_dir(wow_dir);
@@ -278,9 +291,42 @@ impl WowLauncher {
         Ok(())
     }
 
+    /// Verifies all patched-state files exist in the WoW directory.
+    ///
+    /// Returns `LaunchError::SetupFailed` with a message telling the user to run
+    /// `wowplay setup` when any required file is missing.
+    fn check_setup_complete(wow_dir: &Path) -> Result<(), LaunchError> {
+        let required = [
+            "d3d9.dll",
+            "mods/winerosetta.dll",
+            "rosettax87/runtime_loader",
+            "rosettax87/libRuntimeRosettax87",
+        ];
+
+        for rel in &required {
+            let path = wow_dir.join(rel);
+            if !path.exists() {
+                return Err(LaunchError::SetupFailed(format!(
+                    "required file {} not found — run `wowplay setup` first",
+                    rel
+                )));
+            }
+        }
+
+        if !wow_dir.join("DivxDecoder.dll.bak").exists() {
+            return Err(LaunchError::SetupFailed(
+                "DivxDecoder.dll has not been patched — run `wowplay setup` first".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
     /// Patches DivxDecoder.dll (and DivxTac.dll if present) to import winerosetta.
     /// Native Rust implementation — no Wine dependency.
-    fn bootstrap_divx_decoder(wow_dir: &Path) -> Result<(), LaunchError> {
+    ///
+    /// Idempotent: skips DLLs that already have a `.bak` backup (indicating a previous patch).
+    pub fn bootstrap_divx_decoder(wow_dir: &Path) -> Result<(), LaunchError> {
         use crate::adapters::pe_import_patcher::patch_dll_imports;
 
         let dlls_to_patch = ["DivxDecoder.dll", "DivxTac.dll"];
@@ -296,73 +342,6 @@ impl WowLauncher {
             })?;
         }
 
-        Ok(())
-    }
-
-    /// Returns true if the rosettax87 JIT service is already running.
-    pub fn is_rosetta_service_running() -> bool {
-        std::path::Path::new("/var/run/rosetta_helper.sock").exists()
-            || Command::new("pgrep")
-                .args(["-x", "runtime_loader"])
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false)
-    }
-
-    fn ensure_rosetta_service(rosettax87: &Path, use_sudo: bool) -> Result<(), LaunchError> {
-        if Self::is_rosetta_service_running() {
-            return Ok(());
-        }
-        if use_sudo {
-            // Deprecated path: was required before rosettax87 used fork/ptrace.
-            eprintln!(
-                "  \x1b[33m[warn]\x1b[0m --sudo is deprecated; rosettax87 no longer requires root"
-            );
-            let sudo_cached = Command::new("sudo")
-                .args(["-n", "true"])
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-            if !sudo_cached {
-                eprintln!("  \x1b[34m[info]\x1b[0m Enter your password when prompted.");
-                Command::new("sudo")
-                    .arg("-v")
-                    .status()
-                    .map_err(|e| match e.kind() {
-                        std::io::ErrorKind::NotFound => {
-                            LaunchError::SetupFailed("sudo not found on this system".into())
-                        }
-                        std::io::ErrorKind::PermissionDenied => {
-                            LaunchError::SetupFailed("sudo authentication failed".into())
-                        }
-                        _ => LaunchError::SpawnFailed(e),
-                    })?;
-            }
-            Command::new("sudo")
-                .args(["-n", &rosettax87.display().to_string()])
-                .spawn()
-                .map_err(|e| match e.kind() {
-                    std::io::ErrorKind::NotFound => {
-                        LaunchError::SetupFailed("sudo not found on this system".into())
-                    }
-                    std::io::ErrorKind::PermissionDenied => {
-                        LaunchError::SetupFailed("sudo authentication failed".into())
-                    }
-                    _ => LaunchError::SpawnFailed(e),
-                })?;
-        } else {
-            Command::new(rosettax87)
-                .spawn()
-                .map_err(LaunchError::SpawnFailed)?;
-        }
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        if !Self::is_rosetta_service_running() {
-            return Err(LaunchError::SetupFailed(
-                "rosettax87 failed to start — if the binary is quarantined, run: \
-                 xattr -dr com.apple.quarantine <wow_dir>/rosettax87"
-                    .into(),
-            ));
-        }
         Ok(())
     }
 
@@ -399,7 +378,7 @@ impl WowLauncher {
 
 impl WowLauncherPort for WowLauncher {
     fn launch_wow(&self, wow_dir: &Path) -> Result<Child, LaunchError> {
-        let session = self.launch_wow_logged(wow_dir, None)?;
+        let session = self.launch_wow_logged(wow_dir, None, false)?;
         Ok(session.child)
     }
 
@@ -410,7 +389,7 @@ impl WowLauncherPort for WowLauncher {
                 self.runner.name()
             )));
         }
-        let d3d9 = self.wowsilicon_resources.join("d9vk/d3d9.dll");
+        let d3d9 = self.patching_dir.join("d9vk/d3d9.dll");
         if !d3d9.exists() {
             return Err(LaunchError::SetupFailed(format!(
                 "d3d9.dll not found at {} — run wowplay setup --patching-dir <patching-dir>",
@@ -534,6 +513,106 @@ mod tests {
         assert_eq!(
             launcher.rosettax87_bin_dir,
             Some(PathBuf::from("/tmp/rtx87"))
+        );
+    }
+
+    fn write_file(dir: &Path, rel: &str, content: &[u8]) {
+        let path = dir.join(rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(&path, content).unwrap();
+    }
+
+    fn create_setup_complete_dir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let wow_dir = dir.path();
+        write_file(wow_dir, "d3d9.dll", b"d3d9");
+        write_file(wow_dir, "mods/winerosetta.dll", b"wine");
+        write_file(wow_dir, "rosettax87/runtime_loader", b"loader");
+        write_file(wow_dir, "rosettax87/libRuntimeRosettax87", b"lib");
+        write_file(wow_dir, "DivxDecoder.dll.bak", b"original");
+        dir
+    }
+
+    #[test]
+    fn test_check_setup_complete_succeeds_when_all_files_present() {
+        let dir = create_setup_complete_dir();
+        assert!(WowLauncher::check_setup_complete(dir.path()).is_ok());
+    }
+
+    #[test]
+    fn test_check_setup_complete_fails_when_d3d9_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let wow_dir = dir.path();
+        write_file(wow_dir, "mods/winerosetta.dll", b"wine");
+        write_file(wow_dir, "rosettax87/runtime_loader", b"loader");
+        write_file(wow_dir, "rosettax87/libRuntimeRosettax87", b"lib");
+        write_file(wow_dir, "DivxDecoder.dll.bak", b"original");
+
+        let result = WowLauncher::check_setup_complete(wow_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("d3d9.dll"),
+            "error should mention d3d9.dll: {msg}"
+        );
+        assert!(
+            msg.contains("wowplay setup"),
+            "error should mention wowplay setup: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_check_setup_complete_fails_when_winerosetta_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let wow_dir = dir.path();
+        write_file(wow_dir, "d3d9.dll", b"d3d9");
+        write_file(wow_dir, "rosettax87/runtime_loader", b"loader");
+        write_file(wow_dir, "rosettax87/libRuntimeRosettax87", b"lib");
+        write_file(wow_dir, "DivxDecoder.dll.bak", b"original");
+
+        let result = WowLauncher::check_setup_complete(wow_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("winerosetta"),
+            "error should mention winerosetta: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_check_setup_complete_fails_when_rosettax87_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let wow_dir = dir.path();
+        write_file(wow_dir, "d3d9.dll", b"d3d9");
+        write_file(wow_dir, "mods/winerosetta.dll", b"wine");
+        write_file(wow_dir, "DivxDecoder.dll.bak", b"original");
+
+        let result = WowLauncher::check_setup_complete(wow_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("runtime_loader"),
+            "error should mention runtime_loader: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_check_setup_complete_fails_when_divxdecoder_not_patched() {
+        let dir = tempfile::tempdir().unwrap();
+        let wow_dir = dir.path();
+        write_file(wow_dir, "d3d9.dll", b"d3d9");
+        write_file(wow_dir, "mods/winerosetta.dll", b"wine");
+        write_file(wow_dir, "rosettax87/runtime_loader", b"loader");
+        write_file(wow_dir, "rosettax87/libRuntimeRosettax87", b"lib");
+
+        let result = WowLauncher::check_setup_complete(wow_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("DivxDecoder"),
+            "error should mention DivxDecoder: {msg}"
         );
     }
 }

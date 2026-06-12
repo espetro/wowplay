@@ -1,10 +1,9 @@
-//! Resource resolution — finds WoWSilicon patching resources on disk.
+//! Resource resolution — finds patching resources on disk.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::adapters::errors::LaunchError;
-use crate::integration::crossover::{find_wowsilicon, wowsilicon_resources};
 
 /// Resolves the patching resources directory.
 ///
@@ -12,7 +11,6 @@ use crate::integration::crossover::{find_wowsilicon, wowsilicon_resources};
 /// 1. Explicit path if provided
 /// 2. Previously staged at `~/.local/share/wowplay/patching`
 /// 3. Bundled next to the binary (release zip layout)
-/// 4. WoWSilicon.app (legacy / developer path)
 pub fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, LaunchError> {
     if let Some(p) = explicit {
         return Ok(p);
@@ -40,13 +38,8 @@ pub fn resolve_patching_dir(explicit: Option<PathBuf>) -> Result<PathBuf, Launch
         }
     }
 
-    // 3. WoWSilicon.app (legacy / developer path)
-    if let Ok(app) = find_wowsilicon() {
-        return Ok(wowsilicon_resources(&app));
-    }
-
     Err(LaunchError::SetupFailed(
-        "patching resources not found — download the release zip and run wowplay setup".into(),
+        "patching resources not found — download the release bundle and run wowplay setup".into(),
     ))
 }
 
